@@ -1,4 +1,5 @@
-import React from "react";
+import React, { useState } from "react";
+import { TransactionDetailsModal } from "./TransactionDetailsModal";
 import {
   Table,
   TableBody,
@@ -7,7 +8,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -15,119 +15,150 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
-interface Transaction {
-  id: string;
-  date: string;
-  description: string;
-  amount: number;
-  category: string;
-}
+import { Badge } from "@/components/ui/badge";
+import { ProcessedTransaction } from "@/lib/fileProcessing";
+import { getCategoryConfidence } from "@/lib/categorization";
 
 interface CategoryMappingTableProps {
-  transactions?: Transaction[];
+  transactions?: ProcessedTransaction[];
   onCategoryChange?: (transactionId: string, category: string) => void;
 }
 
-const defaultTransactions: Transaction[] = [
-  {
-    id: "1",
-    date: "2024-03-20",
-    description: "Supermarket Purchase",
-    amount: 85.5,
-    category: "Groceries",
-  },
-  {
-    id: "2",
-    date: "2024-03-19",
-    description: "Monthly Transport Pass",
-    amount: 75.0,
-    category: "Transport",
-  },
-  {
-    id: "3",
-    date: "2024-03-18",
-    description: "Restaurant Payment",
-    amount: 45.3,
-    category: "Dining",
-  },
+const categories = [
+  "food",
+  "transport",
+  "shopping",
+  "leisure",
+  "health",
+  "housing",
+  "salary",
+  "other",
 ];
 
-const categories = [
-  "Groceries",
-  "Transport",
-  "Dining",
-  "Entertainment",
-  "Shopping",
-  "Utilities",
-  "Healthcare",
-  "Other",
-];
+const categoryLabels: Record<string, string> = {
+  food: "Alimentation",
+  transport: "Transport",
+  shopping: "Shopping",
+  leisure: "Loisirs",
+  health: "Santé",
+  housing: "Logement",
+  salary: "Salaire",
+  other: "Autre",
+};
 
 const CategoryMappingTable = ({
-  transactions = defaultTransactions,
+  transactions = [],
   onCategoryChange = () => {},
 }: CategoryMappingTableProps) => {
+  const [selectedTransaction, setSelectedTransaction] =
+    useState<ProcessedTransaction | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const getConfidenceDisplay = (confidence: number) => {
+    if (confidence >= 0.9) return "text-green-600";
+    if (confidence >= 0.8) return "text-yellow-600";
+    return "text-gray-400";
+  };
+
   return (
-    <div className="w-full bg-white p-4 rounded-lg shadow-sm">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Date</TableHead>
-            <TableHead>Description</TableHead>
-            <TableHead>Amount</TableHead>
-            <TableHead>Category</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {transactions.map((transaction) => (
-            <TableRow key={transaction.id}>
-              <TableCell>
-                <Input
-                  type="date"
-                  value={transaction.date}
-                  readOnly
-                  className="w-32"
-                />
-              </TableCell>
-              <TableCell>
-                <Input
-                  value={transaction.description}
-                  readOnly
-                  className="w-full"
-                />
-              </TableCell>
-              <TableCell>
-                <Input
-                  type="number"
-                  value={transaction.amount}
-                  readOnly
-                  className="w-32"
-                />
-              </TableCell>
-              <TableCell>
-                <Select
-                  defaultValue={transaction.category}
-                  onValueChange={(value) =>
-                    onCategoryChange(transaction.id, value)
-                  }
-                >
-                  <SelectTrigger className="w-40">
-                    <SelectValue placeholder="Select category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {categories.map((category) => (
-                      <SelectItem key={category} value={category}>
-                        {category}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </TableCell>
+    <div className="w-full bg-white rounded-lg shadow-sm overflow-hidden">
+      <div className="p-4 border-b">
+        <h2 className="text-lg font-semibold">Review Categories</h2>
+        <p className="text-sm text-gray-500 mt-1">
+          Review and adjust the automatically assigned categories
+        </p>
+      </div>
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Date</TableHead>
+              <TableHead>Description</TableHead>
+              <TableHead className="text-right">Amount</TableHead>
+              <TableHead>Category</TableHead>
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+          </TableHeader>
+          <TableBody>
+            {transactions.map((transaction) => {
+              const confidence = getCategoryConfidence(transaction);
+
+              return (
+                <TableRow
+                  key={transaction.id}
+                  className="cursor-pointer hover:bg-gray-50"
+                  onClick={() => {
+                    setSelectedTransaction(transaction);
+                    setIsModalOpen(true);
+                  }}
+                >
+                  <TableCell className="whitespace-nowrap">
+                    {new Date(transaction.date).toLocaleDateString()}
+                  </TableCell>
+                  <TableCell className="max-w-md truncate">
+                    {transaction.description}
+                  </TableCell>
+                  <TableCell className="text-right whitespace-nowrap">
+                    <span
+                      className={
+                        transaction.amount < 0
+                          ? "text-red-600"
+                          : "text-green-600"
+                      }
+                    >
+                      {transaction.amount.toFixed(2)} €
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <Select
+                        value={transaction.category || "other"}
+                        onValueChange={(value) =>
+                          onCategoryChange(transaction.id, value)
+                        }
+                      >
+                        <SelectTrigger className="w-[140px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {categories.map((category) => (
+                            <SelectItem key={category} value={category}>
+                              {categoryLabels[category]}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {confidence >= 0.8 && (
+                        <Badge
+                          variant="outline"
+                          className={getConfidenceDisplay(confidence)}
+                        >
+                          {Math.round(confidence * 100)}%
+                        </Badge>
+                      )}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+            {transactions.length === 0 && (
+              <TableRow>
+                <TableCell
+                  colSpan={4}
+                  className="text-center py-8 text-gray-500"
+                >
+                  No transactions to display
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
+
+      <TransactionDetailsModal
+        transaction={selectedTransaction}
+        open={isModalOpen}
+        onOpenChange={setIsModalOpen}
+        onCategoryChange={onCategoryChange}
+      />
     </div>
   );
 };

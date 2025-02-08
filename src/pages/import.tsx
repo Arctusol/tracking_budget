@@ -1,11 +1,26 @@
 import React, { useState } from "react";
-import { processFile } from "@/lib/fileProcessing";
+import { processFile, ProcessedTransaction } from "@/lib/fileProcessing";
 import { Card } from "@/components/ui/card";
+import { ImportHistory } from "@/components/import/ImportHistory";
+import {
+  createImportRecord,
+  updateImportRecord,
+} from "@/lib/services/import.service";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/ui/use-toast";
 import FileUploadZone from "@/components/import/FileUploadZone";
 import ProcessingPreview from "@/components/import/ProcessingPreview";
+import { storeTransactions } from "@/lib/services/transaction.service";
+import { supabase } from "@/lib/supabase";
 
 const ImportPage = () => {
+  const { toast } = useToast();
+  const [processedTransactions, setProcessedTransactions] = useState<
+    ProcessedTransaction[]
+  >([]);
+  const [editedTransactions, setEditedTransactions] = useState<
+    ProcessedTransaction[]
+  >([]);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadError, setUploadError] = useState("");
@@ -14,63 +29,111 @@ const ImportPage = () => {
   const [showPreview, setShowPreview] = useState(false);
 
   const handleFileSelect = async (files: File[]) => {
+    const file = files[0]; // Handle one file at a time
+    let importRecordId: string | null = null;
+
     setIsUploading(true);
     setUploadError("");
 
     try {
-      for (const file of files) {
-        // Update upload progress
-        setUploadProgress(0);
-        const uploadInterval = setInterval(() => {
-          setUploadProgress((prev) => Math.min(prev + 10, 90));
-        }, 200);
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
 
-        // Process the file
-        setIsProcessing(true);
-        const transactions = await processFile(file);
-        clearInterval(uploadInterval);
-        setUploadProgress(100);
+      // Create import record
+      const importRecord = await createImportRecord({
+        user_id: user.id,
+        file_name: file.name,
+        file_type: file.type,
+        status: "pending",
+        transaction_count: 0,
+      });
+      importRecordId = importRecord.id;
 
-        // Show preview with processed transactions
-        setProcessingProgress(100);
-        setIsProcessing(false);
-        setShowPreview(true);
+      // Update upload progress
+      setUploadProgress(0);
+      const uploadInterval = setInterval(() => {
+        setUploadProgress((prev) => Math.min(prev + 10, 90));
+      }, 200);
 
-        // Update the CategoryMappingTable with the processed transactions
-        // You'll need to implement this part based on your data structure
-        console.log("Processed transactions:", transactions);
+      // Process the file
+      setIsProcessing(true);
+      const transactions = await processFile(file);
+      clearInterval(uploadInterval);
+      setUploadProgress(100);
+
+      // Store processed transactions and show preview
+      setProcessedTransactions(transactions);
+      setEditedTransactions(transactions);
+      setProcessingProgress(100);
+      setIsProcessing(false);
+      setShowPreview(true);
+
+      // Update import record with success
+      if (importRecordId) {
+        await updateImportRecord(importRecordId, {
+          status: "completed",
+          transaction_count: transactions.length,
+        });
       }
     } catch (error) {
+      // Update import record with error
+      if (importRecordId) {
+        await updateImportRecord(importRecordId, {
+          status: "failed",
+          error_message: error.message,
+        });
+      }
       setUploadError(error.message);
     } finally {
       setIsUploading(false);
     }
   };
 
-  const simulateProcessing = () => {
-    const interval = setInterval(() => {
-      setProcessingProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          setIsProcessing(false);
-          setShowPreview(true);
-          return 100;
-        }
-        return prev + 20;
-      });
-    }, 1000);
-  };
+  const handleConfirmImport = async () => {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
 
-  const handleConfirmImport = () => {
-    // Handle import confirmation
-    console.log("Import confirmed");
+      await storeTransactions(editedTransactions, user.id);
+
+      toast({
+        title: "Success",
+        description: `${editedTransactions.length} transactions imported successfully`,
+      });
+
+      // Reset state
+      setProcessedTransactions([]);
+      setEditedTransactions([]);
+      setShowPreview(false);
+      setUploadProgress(0);
+      setProcessingProgress(0);
+    } catch (error) {
+      console.error("Error importing transactions:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to import transactions. Please try again.",
+      });
+    }
   };
 
   const handleCancelImport = () => {
     // Reset the state
     setShowPreview(false);
+    setProcessedTransactions([]);
+    setEditedTransactions([]);
     setUploadProgress(0);
     setProcessingProgress(0);
+  };
+
+  const handleCategoryChange = (transactionId: string, category: string) => {
+    setEditedTransactions((prev) =>
+      prev.map((t) => (t.id === transactionId ? { ...t, category } : t)),
+    );
   };
 
   return (
@@ -96,11 +159,15 @@ const ImportPage = () => {
             <ProcessingPreview
               isProcessing={isProcessing}
               progress={processingProgress}
+              transactions={editedTransactions}
               onConfirm={handleConfirmImport}
               onCancel={handleCancelImport}
+              onCategoryChange={handleCategoryChange}
             />
           )}
         </Card>
+
+        <ImportHistory />
 
         <div className="bg-white p-6 rounded-lg shadow-sm">
           <h2 className="text-xl font-semibold mb-4">Import Guidelines</h2>
