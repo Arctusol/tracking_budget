@@ -3,23 +3,31 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import CategoryMappingTable from "./CategoryMappingTable";
+import { ProcessedTransaction } from "@/lib/fileProcessing";
 import { AlertCircle, CheckCircle2 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+
+import { ValidationError } from "@/lib/validation";
 
 interface ProcessingPreviewProps {
   isProcessing?: boolean;
   progress?: number;
   error?: string;
+  validationErrors?: ValidationError[];
+  transactions?: ProcessedTransaction[];
   onConfirm?: () => void;
   onCancel?: () => void;
+  onCategoryChange?: (transactionId: string, category: string) => void;
 }
 
 const ProcessingPreview = ({
   isProcessing = false,
   progress = 0,
   error = "",
+  transactions = [],
   onConfirm = () => {},
   onCancel = () => {},
+  onCategoryChange = () => {},
 }: ProcessingPreviewProps) => {
   return (
     <div className="w-full max-w-5xl mx-auto bg-gray-50 p-6 rounded-lg">
@@ -48,7 +56,10 @@ const ProcessingPreview = ({
             </AlertDescription>
           </Alert>
 
-          <CategoryMappingTable />
+          <CategoryMappingTable
+            transactions={transactions}
+            onCategoryChange={onCategoryChange}
+          />
 
           <div className="flex justify-end space-x-4">
             <Button variant="outline" onClick={onCancel}>

@@ -1,11 +1,18 @@
 import * as Papa from "papaparse";
 import { createWorker } from "tesseract.js";
+import { categorizeBatch } from "./categorization";
+import { validateTransactions, sanitizeTransactionData } from "./validation";
 
 export interface ProcessedTransaction {
   date: string;
   description: string;
   amount: number;
   category?: string;
+  merchant?: string;
+  location?: {
+    lat: number;
+    lng: number;
+  };
 }
 
 export async function processFile(file: File): Promise<ProcessedTransaction[]> {
@@ -33,6 +40,7 @@ export async function processFile(file: File): Promise<ProcessedTransaction[]> {
 
 async function processCSV(file: File): Promise<ProcessedTransaction[]> {
   return new Promise((resolve, reject) => {
+    let validationErrors: any[] = [];
     Papa.parse(file, {
       header: true,
       skipEmptyLines: true,
@@ -40,7 +48,7 @@ async function processCSV(file: File): Promise<ProcessedTransaction[]> {
         const transactions = results.data
           .map((row: any) => {
             // Adapt these field names based on your CSV structure
-            return {
+            const rawTransaction = {
               date: row.date || row.Date || "",
               description:
                 row.description ||
@@ -49,14 +57,22 @@ async function processCSV(file: File): Promise<ProcessedTransaction[]> {
                 row.Libellé ||
                 "",
               amount:
-                parseFloat(
-                  row.amount || row.Amount || row.montant || row.Montant || "0",
-                ) || 0,
+                row.amount || row.Amount || row.montant || row.Montant || "0",
               category: row.category || row.Category || "",
             };
+            return sanitizeTransactionData(rawTransaction);
           })
           .filter((t) => t.date && t.amount);
-        resolve(transactions);
+
+        const { valid, errors } = validateTransactions(transactions);
+        if (errors.length > 0) {
+          validationErrors = errors;
+        }
+        if (valid.length === 0) {
+          reject(new Error("No valid transactions found in the file"));
+          return;
+        }
+        resolve(valid);
       },
       error: (error) => {
         reject(new Error("Erreur lors de la lecture du fichier CSV"));
@@ -79,12 +95,17 @@ async function processPDF(file: File): Promise<ProcessedTransaction[]> {
       /([0-9]{2}[/-][0-9]{2}[/-][0-9]{4}).*?([0-9]+[.,][0-9]{2})/,
     );
     if (match) {
-      transactions.push({
+      const rawTransaction = {
         date: match[1],
         description: line.replace(match[0], "").trim(),
-        amount: parseFloat(match[2].replace(",", ".")),
+        amount: match[2],
         category: "",
-      });
+      };
+      const sanitizedTransaction = sanitizeTransactionData(rawTransaction);
+      const { valid, errors } = validateTransactions([sanitizedTransaction]);
+      if (valid.length > 0) {
+        transactions.push(valid[0]);
+      }
     }
   }
 
@@ -118,7 +139,7 @@ async function processImage(file: File): Promise<ProcessedTransaction[]> {
       }
     }
 
-    return transactions;
+    return categorizeBatch(transactions);
   } catch (error) {
     console.error("Erreur lors de la lecture de l'image:", error);
     throw new Error("Erreur lors de la lecture de l'image");

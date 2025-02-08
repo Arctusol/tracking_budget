@@ -5,6 +5,7 @@ import {
   Home,
   PieChart,
   Users,
+  Upload,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -16,6 +17,7 @@ const navigation = [
     icon: CreditCard,
     current: false,
   },
+  { name: "Import", href: "/import", icon: Upload, current: false },
   { name: "Analyses", href: "/analytics", icon: PieChart, current: false },
   { name: "Budgets", href: "/budgets", icon: BarChart3, current: false },
   { name: "Rapports", href: "/reports", icon: FileText, current: false },
