@@ -2,8 +2,10 @@ import * as Papa from "papaparse";
 import { createWorker } from "tesseract.js";
 import { categorizeBatch } from "./categorization";
 import { validateTransactions, sanitizeTransactionData } from "./validation";
+import { DocumentIntelligenceClient, AzureKeyCredential } from "@azure/ai-document-intelligence";
 
 export interface ProcessedTransaction {
+  id: string;
   date: string;
   description: string;
   amount: number;
@@ -13,6 +15,29 @@ export interface ProcessedTransaction {
     lat: number;
     lng: number;
   };
+  metadata?: {
+    date_valeur: string;
+    numero_releve: string;
+    titulaire: string;
+  };
+}
+
+export interface BankStatement {
+  titulaire: {
+    nom: string;
+  };
+  infos_releve: {
+    numero_releve: string;
+    date_emission: string;
+    date_arrete: string;
+    solde_ancien: string;
+  };
+  operations: Array<{
+    date_operation: string;
+    description: string;
+    debit: string;
+    credit: string;
+  }>;
 }
 
 export async function processFile(file: File): Promise<ProcessedTransaction[]> {
@@ -49,6 +74,7 @@ async function processCSV(file: File): Promise<ProcessedTransaction[]> {
           .map((row: any) => {
             // Adapt these field names based on your CSV structure
             const rawTransaction = {
+              id: '',
               date: row.date || row.Date || "",
               description:
                 row.description ||
@@ -82,34 +108,126 @@ async function processCSV(file: File): Promise<ProcessedTransaction[]> {
 }
 
 async function processPDF(file: File): Promise<ProcessedTransaction[]> {
-  // For now, we'll just extract text and try to parse it
-  // In a real implementation, you'd want to use a more sophisticated PDF parsing library
-  const text = await file.text();
+  try {
+    // First convert the file to base64
+    const fileBuffer = await file.arrayBuffer();
+    const base64Data = Buffer.from(fileBuffer).toString('base64');
 
-  // This is a very basic implementation - you'd want to improve this based on your PDF structure
-  const lines = text.split("\n");
-  const transactions: ProcessedTransaction[] = [];
+    // Initialize the Document Intelligence client
+    const endpoint = process.env.NEXT_PUBLIC_AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT || "";
+    const key = process.env.NEXT_PUBLIC_AZURE_DOCUMENT_INTELLIGENCE_KEY || "";
+    
+    if (!endpoint || !key) {
+      throw new Error("Azure Document Intelligence credentials not configured");
+    }
 
-  for (const line of lines) {
-    const match = line.match(
-      /([0-9]{2}[/-][0-9]{2}[/-][0-9]{4}).*?([0-9]+[.,][0-9]{2})/,
+    const client = new DocumentIntelligenceClient(endpoint, new AzureKeyCredential(key));
+
+    // Analyze the document
+    const poller = await client.beginAnalyzeDocument(
+      "prebuilt-layout",
+      { base64Source: base64Data }
     );
-    if (match) {
-      const rawTransaction = {
-        date: match[1],
-        description: line.replace(match[0], "").trim(),
-        amount: match[2],
-        category: "",
-      };
-      const sanitizedTransaction = sanitizeTransactionData(rawTransaction);
-      const { valid, errors } = validateTransactions([sanitizedTransaction]);
-      if (valid.length > 0) {
-        transactions.push(valid[0]);
+    
+    const result = await poller.pollUntilDone();
+
+    if (!result) {
+      throw new Error("Failed to analyze document");
+    }
+
+    // Parse the result into our BankStatement format
+    const bankStatement: BankStatement = {
+      titulaire: {
+        nom: "",
+      },
+      infos_releve: {
+        numero_releve: "",
+        date_emission: "",
+        date_arrete: "",
+        solde_ancien: "",
+      },
+      operations: [],
+    };
+
+    // Extract information from the document
+    if (result.pages) {
+      for (const page of result.pages) {
+        for (const line of page.lines || []) {
+          const content = line.content;
+          
+          // Extract titulaire information
+          if (content.includes("Titulaire(s) du compte :")) {
+            bankStatement.titulaire.nom = content.replace("Titulaire(s) du compte :", "").trim();
+          }
+          
+          // Extract relevé information
+          if (content.includes("Nº")) {
+            bankStatement.infos_releve.numero_releve = content.split("-")[0].replace("Nº", "").trim();
+          }
+          
+          if (content.includes("Arrêté au")) {
+            bankStatement.infos_releve.date_arrete = content.replace("Arrêté au", "").trim();
+          }
+          
+          if (content.includes("ANCIEN SOLDE CRÉDITEUR")) {
+            const soldeMatch = content.match(/\d+,\d+\s*€/);
+            if (soldeMatch) {
+              bankStatement.infos_releve.solde_ancien = soldeMatch[0];
+            }
+          }
+        }
+
+        // Extract operations from tables
+        if (result.tables) {
+          for (const table of result.tables) {
+            for (const cell of table.cells) {
+              // Skip header rows
+              if (cell.rowIndex === 0) continue;
+              
+              const rowData = table.cells.filter(c => c.rowIndex === cell.rowIndex);
+              if (rowData.length >= 4) {
+                const operation = {
+                  date_operation: rowData[0]?.content || "",
+                  description: rowData[2]?.content || "",
+                  debit: rowData[3]?.content || "",
+                  credit: rowData[4]?.content || "",
+                };
+                
+                // Only add if we have at least a date and description
+                if (operation.date_operation && operation.description) {
+                  bankStatement.operations.push(operation);
+                }
+              }
+            }
+          }
+        }
       }
     }
-  }
 
-  return transactions;
+    // Convert BankStatement to ProcessedTransaction[]
+    return bankStatement.operations.map((op) => ({
+      id: crypto.randomUUID(),
+      date: op.date_operation,
+      description: op.description,
+      amount: parseFloat((op.credit || op.debit || "0").replace(",", ".").replace("€", "").trim()),
+      metadata: {
+        date_valeur: op.date_operation,
+        numero_releve: bankStatement.infos_releve.numero_releve,
+        titulaire: bankStatement.titulaire.nom,
+      },
+    }));
+
+  } catch (error) {
+    console.error("Error processing PDF with Azure Document Intelligence:", error);
+    throw new Error("Failed to process PDF document");
+  }
+}
+
+function extractMerchantFromDescription(description: string): string {
+  // Logique simple pour extraire le nom du commerçant
+  // À améliorer selon les formats spécifiques des descriptions
+  const words = description.split(' ');
+  return words[0] || '';
 }
 
 async function processImage(file: File): Promise<ProcessedTransaction[]> {
@@ -131,6 +249,7 @@ async function processImage(file: File): Promise<ProcessedTransaction[]> {
       );
       if (match) {
         transactions.push({
+          id: '',
           date: match[1],
           description: line.replace(match[0], "").trim(),
           amount: parseFloat(match[2].replace(",", ".")),
