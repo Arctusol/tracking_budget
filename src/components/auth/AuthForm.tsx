@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { useToast } from "@/components/ui/use-toast";
+import { useNavigate } from "react-router-dom";
 
 export function AuthForm() {
   const [isSignUp, setIsSignUp] = useState(false);
@@ -14,6 +15,7 @@ export function AuthForm() {
   const [loading, setLoading] = useState(false);
   const { signIn, signUp } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,8 +28,12 @@ export function AuthForm() {
           title: "Account created",
           description: "Please check your email to verify your account.",
         });
+        // Redirection vers la page d'accueil après inscription réussie
+        navigate("/");
       } else {
         await signIn(email, password);
+        // Redirection vers la page d'accueil après connexion réussie
+        navigate("/");
       }
     } catch (error) {
       toast({
@@ -101,7 +107,7 @@ export function AuthForm() {
         >
           {isSignUp
             ? "Already have an account? Sign in"
-            : "Need an account? Sign up"}
+            : "Don't have an account? Sign up"}
         </button>
       </div>
     </Card>
