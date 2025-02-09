@@ -2,7 +2,13 @@ import * as Papa from "papaparse";
 import { createWorker } from "tesseract.js";
 import { categorizeBatch } from "./categorization";
 import { validateTransactions, sanitizeTransactionData } from "./validation";
-import { DocumentIntelligenceClient, AzureKeyCredential } from "@azure/ai-document-intelligence";
+import { createClient } from "@azure-rest/ai-document-intelligence";
+import {
+  DocumentAnalysisError,
+  ConfigurationError,
+  ValidationError,
+  ExtractError,
+} from "./errors/documentProcessingErrors";
 
 export interface ProcessedTransaction {
   id: string;
@@ -74,7 +80,7 @@ async function processCSV(file: File): Promise<ProcessedTransaction[]> {
           .map((row: any) => {
             // Adapt these field names based on your CSV structure
             const rawTransaction = {
-              id: '',
+              id: "",
               date: row.date || row.Date || "",
               description:
                 row.description ||
@@ -108,31 +114,45 @@ async function processCSV(file: File): Promise<ProcessedTransaction[]> {
 }
 
 async function processPDF(file: File): Promise<ProcessedTransaction[]> {
+  if (!file) {
+    throw new ValidationError("No file provided", []);
+  }
+
+  if (file.size > 10 * 1024 * 1024) {
+    // 10MB limit
+    throw new ValidationError("File size exceeds 10MB limit", []);
+  }
   try {
     // First convert the file to base64
     const fileBuffer = await file.arrayBuffer();
-    const base64Data = Buffer.from(fileBuffer).toString('base64');
+    const base64Data = Buffer.from(fileBuffer).toString("base64");
 
     // Initialize the Document Intelligence client
-    const endpoint = process.env.NEXT_PUBLIC_AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT || "";
+    const endpoint =
+      process.env.NEXT_PUBLIC_AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT || "";
     const key = process.env.NEXT_PUBLIC_AZURE_DOCUMENT_INTELLIGENCE_KEY || "";
-    
+
     if (!endpoint || !key) {
-      throw new Error("Azure Document Intelligence credentials not configured");
+      throw new ConfigurationError(
+        "Azure Document Intelligence credentials not configured",
+      );
     }
 
-    const client = new DocumentIntelligenceClient(endpoint, new AzureKeyCredential(key));
+    const client = createClient(endpoint, key);
 
     // Analyze the document
-    const poller = await client.beginAnalyzeDocument(
-      "prebuilt-layout",
-      { base64Source: base64Data }
-    );
-    
-    const result = await poller.pollUntilDone();
+    const poller = await client.beginAnalyzeDocument("prebuilt-layout", {
+      base64Source: base64Data,
+    });
+
+    const { body: result } = await poller.pollUntilDone();
 
     if (!result) {
-      throw new Error("Failed to analyze document");
+      throw new DocumentAnalysisError("Failed to analyze document");
+    }
+
+    if (!result.pages || result.pages.length === 0) {
+      throw new DocumentAnalysisError("No pages found in document");
     }
 
     // Parse the result into our BankStatement format
@@ -154,21 +174,28 @@ async function processPDF(file: File): Promise<ProcessedTransaction[]> {
       for (const page of result.pages) {
         for (const line of page.lines || []) {
           const content = line.content;
-          
+
           // Extract titulaire information
           if (content.includes("Titulaire(s) du compte :")) {
-            bankStatement.titulaire.nom = content.replace("Titulaire(s) du compte :", "").trim();
+            bankStatement.titulaire.nom = content
+              .replace("Titulaire(s) du compte :", "")
+              .trim();
           }
-          
+
           // Extract relevé information
           if (content.includes("Nº")) {
-            bankStatement.infos_releve.numero_releve = content.split("-")[0].replace("Nº", "").trim();
+            bankStatement.infos_releve.numero_releve = content
+              .split("-")[0]
+              .replace("Nº", "")
+              .trim();
           }
-          
+
           if (content.includes("Arrêté au")) {
-            bankStatement.infos_releve.date_arrete = content.replace("Arrêté au", "").trim();
+            bankStatement.infos_releve.date_arrete = content
+              .replace("Arrêté au", "")
+              .trim();
           }
-          
+
           if (content.includes("ANCIEN SOLDE CRÉDITEUR")) {
             const soldeMatch = content.match(/\d+,\d+\s*€/);
             if (soldeMatch) {
@@ -183,8 +210,10 @@ async function processPDF(file: File): Promise<ProcessedTransaction[]> {
             for (const cell of table.cells) {
               // Skip header rows
               if (cell.rowIndex === 0) continue;
-              
-              const rowData = table.cells.filter(c => c.rowIndex === cell.rowIndex);
+
+              const rowData = table.cells.filter(
+                (c) => c.rowIndex === cell.rowIndex,
+              );
               if (rowData.length >= 4) {
                 const operation = {
                   date_operation: rowData[0]?.content || "",
@@ -192,7 +221,7 @@ async function processPDF(file: File): Promise<ProcessedTransaction[]> {
                   debit: rowData[3]?.content || "",
                   credit: rowData[4]?.content || "",
                 };
-                
+
                 // Only add if we have at least a date and description
                 if (operation.date_operation && operation.description) {
                   bankStatement.operations.push(operation);
@@ -205,11 +234,16 @@ async function processPDF(file: File): Promise<ProcessedTransaction[]> {
     }
 
     // Convert BankStatement to ProcessedTransaction[]
-    return bankStatement.operations.map((op) => ({
+    const transactions = bankStatement.operations.map((op) => ({
       id: crypto.randomUUID(),
       date: op.date_operation,
       description: op.description,
-      amount: parseFloat((op.credit || op.debit || "0").replace(",", ".").replace("€", "").trim()),
+      amount: parseFloat(
+        (op.credit || op.debit || "0")
+          .replace(",", ".")
+          .replace("€", "")
+          .trim(),
+      ),
       metadata: {
         date_valeur: op.date_operation,
         numero_releve: bankStatement.infos_releve.numero_releve,
@@ -217,17 +251,75 @@ async function processPDF(file: File): Promise<ProcessedTransaction[]> {
       },
     }));
 
+    // Try to match existing patterns first
+    const categorizedTransactions = await Promise.all(
+      transactions.map(async (transaction) => {
+        const pattern = await findMatchingPattern(transaction.description);
+        if (pattern) {
+          return {
+            ...transaction,
+            category_id: pattern.category_id,
+          };
+        }
+        // If no pattern matches, use AI categorization
+        return transaction;
+      }),
+    );
+
+    // Use AI only for transactions without a matching pattern
+    const uncategorizedTransactions = categorizedTransactions.filter(
+      (t) => !t.category_id,
+    );
+    if (uncategorizedTransactions.length > 0) {
+      const aiCategorized = await categorizeBatch(uncategorizedTransactions);
+      return categorizedTransactions.map((t) =>
+        t.category_id ? t : aiCategorized.find((ai) => ai.id === t.id) || t,
+      );
+    }
+
+    return categorizedTransactions;
   } catch (error) {
-    console.error("Error processing PDF with Azure Document Intelligence:", error);
-    throw new Error("Failed to process PDF document");
+    console.error(
+      "Error processing PDF with Azure Document Intelligence:",
+      error,
+    );
+
+    if (error instanceof DocumentProcessingError) {
+      throw error;
+    }
+
+    if (error.name === "AbortError") {
+      throw new DocumentAnalysisError("Document analysis request timed out");
+    }
+
+    if (error.status === 401 || error.status === 403) {
+      throw new ConfigurationError(
+        "Invalid Azure credentials or insufficient permissions",
+      );
+    }
+
+    if (error.status === 413) {
+      throw new ValidationError("File size too large for processing", []);
+    }
+
+    if (error.status >= 500) {
+      throw new DocumentAnalysisError(
+        "Azure service is currently unavailable",
+        error,
+      );
+    }
+
+    throw new DocumentAnalysisError("Failed to process PDF document", {
+      originalError: error,
+    });
   }
 }
 
 function extractMerchantFromDescription(description: string): string {
   // Logique simple pour extraire le nom du commerçant
   // À améliorer selon les formats spécifiques des descriptions
-  const words = description.split(' ');
-  return words[0] || '';
+  const words = description.split(" ");
+  return words[0] || "";
 }
 
 async function processImage(file: File): Promise<ProcessedTransaction[]> {
@@ -249,7 +341,7 @@ async function processImage(file: File): Promise<ProcessedTransaction[]> {
       );
       if (match) {
         transactions.push({
-          id: '',
+          id: "",
           date: match[1],
           description: line.replace(match[0], "").trim(),
           amount: parseFloat(match[2].replace(",", ".")),

@@ -1,20 +1,18 @@
-import { ExpenseList } from "./ExpenseList";
-import { ExpenseChart } from "./ExpenseChart";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
-import {
-  ArrowDownIcon,
-  ArrowUpIcon,
-  TrendingUp,
-} from "lucide-react";
+import { StatsCards } from "./stats/StatsCards";
+import { ExpenseByCategory } from "./charts/ExpenseByCategory";
+import { ExpenseOverTime } from "./charts/ExpenseOverTime";
+import { TopExpenses } from "./charts/TopExpenses";
+import { ExpenseList } from "./ExpenseList";
 
 interface Transaction {
   id: string;
   amount: number;
-  type: 'expense' | 'income';
+  type: "expense" | "income";
   description: string;
-  date: Date;
+  date: string;
   category: string;
   created_by: string;
   shared_with?: string[];
@@ -35,7 +33,7 @@ export function Dashboard() {
     balance: 0,
     monthlyIncome: 0,
     monthlyExpenses: 0,
-    userShare: 0
+    userShare: 0,
   });
   const { user } = useAuth();
 
@@ -44,23 +42,24 @@ export function Dashboard() {
 
     const fetchData = async () => {
       // Charger les transactions
-      const { data: transactionsData, error: transactionsError } = await supabase
-        .from('transactions')
-        .select('*')
-        .order('date', { ascending: false });
+      const { data: transactionsData, error: transactionsError } =
+        await supabase
+          .from("transactions")
+          .select("*")
+          .order("date", { ascending: false });
 
       if (transactionsError) {
-        console.error('Error loading transactions:', transactionsError);
+        console.error("Error loading transactions:", transactionsError);
         return;
       }
 
       // Charger les profils
       const { data: profilesData, error: profilesError } = await supabase
-        .from('profiles')
-        .select('*');
+        .from("profiles")
+        .select("*");
 
       if (profilesError) {
-        console.error('Error loading profiles:', profilesError);
+        console.error("Error loading profiles:", profilesError);
         return;
       }
 
@@ -70,30 +69,32 @@ export function Dashboard() {
       // Calculer les statistiques
       const now = new Date();
       const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-      
+
       const monthlyTransactions = (transactionsData || []).filter(
-        (t: Transaction) => new Date(t.date) >= firstDayOfMonth
+        (t: Transaction) => new Date(t.date) >= firstDayOfMonth,
       );
 
       const monthlyIncome = monthlyTransactions
-        .filter((t: Transaction) => t.type === 'income')
+        .filter((t: Transaction) => t.type === "income")
         .reduce((sum: number, t: Transaction) => sum + t.amount, 0);
 
       const monthlyExpenses = monthlyTransactions
-        .filter((t: Transaction) => t.type === 'expense')
+        .filter((t: Transaction) => t.type === "expense")
         .reduce((sum: number, t: Transaction) => sum + t.amount, 0);
 
       const balance = monthlyIncome - monthlyExpenses;
 
       const userExpenses = monthlyTransactions
-        .filter((t: Transaction) => t.type === 'expense' && t.created_by === user.id)
+        .filter(
+          (t: Transaction) => t.type === "expense" && t.created_by === user.id,
+        )
         .reduce((sum: number, t: Transaction) => sum + t.amount, 0);
 
       setStats({
         balance,
         monthlyIncome,
         monthlyExpenses,
-        userShare: userExpenses
+        userShare: userExpenses,
       });
     };
 
@@ -103,65 +104,119 @@ export function Dashboard() {
   const statsDisplay = [
     {
       name: "Solde du Compte",
-      value: `${stats.balance.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}`,
+      value: stats.balance.toLocaleString("fr-FR", {
+        style: "currency",
+        currency: "EUR",
+      }),
       trend: stats.balance >= 0 ? "up" : "down",
     },
     {
       name: "Revenus du Mois",
-      value: `${stats.monthlyIncome.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}`,
+      value: stats.monthlyIncome.toLocaleString("fr-FR", {
+        style: "currency",
+        currency: "EUR",
+      }),
       trend: "up",
     },
     {
       name: "Dépenses du Mois",
-      value: `${stats.monthlyExpenses.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}`,
+      value: stats.monthlyExpenses.toLocaleString("fr-FR", {
+        style: "currency",
+        currency: "EUR",
+      }),
       trend: "down",
     },
     {
       name: "Mes Dépenses",
-      value: `${stats.userShare.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}`,
+      value: stats.userShare.toLocaleString("fr-FR", {
+        style: "currency",
+        currency: "EUR",
+      }),
       trend: "neutral",
     },
   ];
+
+  // Données pour le graphique des dépenses par catégorie
+  const expensesByCategory = transactions
+    .filter((t) => t.type === "expense")
+    .reduce(
+      (acc, t) => {
+        const category = t.category || "Autre";
+        acc[category] = (acc[category] || 0) + t.amount;
+        return acc;
+      },
+      {} as Record<string, number>,
+    );
+
+  const categoryColors = {
+    Alimentation: "#ef4444",
+    Transport: "#f97316",
+    Logement: "#22c55e",
+    Loisirs: "#3b82f6",
+    Santé: "#8b5cf6",
+    Autre: "#64748b",
+  };
+
+  const categoryData = Object.entries(expensesByCategory).map(
+    ([name, value]) => ({
+      name,
+      value,
+      color: categoryColors[name as keyof typeof categoryColors] || "#64748b",
+    }),
+  );
+
+  // Données pour le graphique d'évolution dans le temps
+  const timeData = transactions.reduce(
+    (acc, t) => {
+      const date = t.date.split("T")[0];
+      const existing = acc.find((d) => d.date === date);
+      if (existing) {
+        if (t.type === "expense") existing.expenses += t.amount;
+        if (t.type === "income") existing.income += t.amount;
+      } else {
+        acc.push({
+          date,
+          expenses: t.type === "expense" ? t.amount : 0,
+          income: t.type === "income" ? t.amount : 0,
+        });
+      }
+      return acc;
+    },
+    [] as Array<{ date: string; expenses: number; income: number }>,
+  );
+
+  // Données pour les principales dépenses
+  const topExpenses = transactions
+    .filter((t) => t.type === "expense")
+    .sort((a, b) => b.amount - a.amount)
+    .slice(0, 5)
+    .map((t) => ({
+      name: t.description,
+      amount: t.amount,
+    }));
 
   return (
     <div className="w-full p-6">
       <div className="max-w-7xl mx-auto space-y-6">
         <h1 className="text-3xl font-bold">Tableau de Bord SpendWise</h1>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          {statsDisplay.map((stat) => (
-            <div key={stat.name} className="bg-white p-4 rounded-lg shadow">
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-muted-foreground">{stat.name}</p>
-                {stat.trend === "up" && (
-                  <ArrowUpIcon className="h-4 w-4 text-green-500" />
-                )}
-                {stat.trend === "down" && (
-                  <ArrowDownIcon className="h-4 w-4 text-red-500" />
-                )}
-                {stat.trend === "neutral" && (
-                  <TrendingUp className="h-4 w-4 text-gray-400" />
-                )}
-              </div>
-              <p className="text-2xl font-bold mt-2">{stat.value}</p>
-            </div>
-          ))}
+        <StatsCards stats={statsDisplay} />
+
+        <div className="grid gap-6 md:grid-cols-2">
+          <ExpenseByCategory
+            data={categoryData}
+            title="Dépenses par Catégorie"
+          />
+          <ExpenseOverTime
+            data={timeData}
+            title="Évolution des Dépenses et Revenus"
+          />
         </div>
 
         <div className="grid gap-6 md:grid-cols-2">
-          <ExpenseChart
-            transactions={transactions}
-            type="expense"
-            title="Dépenses par Catégorie"
-          />
-          <ExpenseChart
-            transactions={transactions}
-            type="income"
-            title="Revenus par Catégorie"
-          />
+          <TopExpenses data={topExpenses} title="Top 5 des Dépenses" />
+          <ExpenseList transactions={transactions} members={profiles} />
         </div>
-
-        <ExpenseList transactions={transactions} members={profiles} />
       </div>
     </div>
   );
