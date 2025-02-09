@@ -1,30 +1,32 @@
 import * as Papa from "papaparse";
 import { createWorker } from "tesseract.js";
 import { categorizeBatch } from "./categorization";
-import { validateTransactions, sanitizeTransactionData } from "./validation";
-import { createClient } from "@azure-rest/ai-document-intelligence";
+import { validateTransactions as validateTransactionsBatch, sanitizeTransactionData } from "./validation";
 import {
   DocumentAnalysisError,
   ConfigurationError,
   ValidationError,
   ExtractError,
+  DocumentProcessingError,
 } from "./errors/documentProcessingErrors";
+import DocumentIntelligence from "@azure-rest/ai-document-intelligence";
+import { getLongRunningPoller, isUnexpected } from "@azure-rest/ai-document-intelligence";
+import { AzureKeyCredential } from "@azure/core-auth";
+import { v4 as uuidv4 } from 'uuid';
+import { Transaction, TransactionType } from "../types/transaction";
 
-export interface ProcessedTransaction {
+export interface ProcessedTransaction extends Omit<Transaction, 'created_by' | 'created_at' | 'updated_at'> {
   id: string;
-  date: string;
-  description: string;
   amount: number;
-  category?: string;
+  type: TransactionType;
+  description: string;
+  date: string;
+  category_id?: string;
   merchant?: string;
-  location?: {
-    lat: number;
-    lng: number;
-  };
   metadata?: {
-    date_valeur: string;
-    numero_releve: string;
-    titulaire: string;
+    date_valeur?: string;
+    numero_releve?: string;
+    titulaire?: string;
   };
 }
 
@@ -44,6 +46,25 @@ export interface BankStatement {
     debit: string;
     credit: string;
   }>;
+}
+
+interface AzureAnalyzeResult {
+  pages?: {
+    lines?: {
+      content?: string;
+    }[];
+  }[];
+  tables?: {
+    cells: {
+      rowIndex: number;
+      columnIndex: number;
+      content?: string;
+    }[];
+  }[];
+}
+
+interface AzureResponse {
+  analyzeResult: AzureAnalyzeResult;
 }
 
 export async function processFile(file: File): Promise<ProcessedTransaction[]> {
@@ -80,31 +101,32 @@ async function processCSV(file: File): Promise<ProcessedTransaction[]> {
           .map((row: any) => {
             // Adapt these field names based on your CSV structure
             const rawTransaction = {
-              id: "",
-              date: row.date || row.Date || "",
+              id: uuidv4(),
+              date: row.date || row.Date || row.date_operation || row.DateOperation || "",
               description:
                 row.description ||
                 row.Description ||
                 row.libelle ||
-                row.Libellé ||
+                row.Libelle ||
                 "",
               amount:
                 row.amount || row.Amount || row.montant || row.Montant || "0",
+              type: Number(row.amount || row.Amount || row.montant || row.Montant || "0") >= 0 ? 'income' as TransactionType : 'expense' as TransactionType,
               category: row.category || row.Category || "",
             };
             return sanitizeTransactionData(rawTransaction);
           })
           .filter((t) => t.date && t.amount);
 
-        const { valid, errors } = validateTransactions(transactions);
-        if (errors.length > 0) {
-          validationErrors = errors;
+        const validationResult = validateTransactionsBatch(transactions);
+        if (validationResult.errors.length > 0) {
+          validationErrors = validationResult.errors;
         }
-        if (valid.length === 0) {
+        if (validationResult.valid.length === 0) {
           reject(new Error("No valid transactions found in the file"));
           return;
         }
-        resolve(valid);
+        resolve(validationResult.valid);
       },
       error: (error) => {
         reject(new Error("Erreur lors de la lecture du fichier CSV"));
@@ -115,244 +137,294 @@ async function processCSV(file: File): Promise<ProcessedTransaction[]> {
 
 async function processPDF(file: File): Promise<ProcessedTransaction[]> {
   if (!file) {
-    throw new ValidationError("No file provided", []);
+    throw new DocumentProcessingError("No file provided");
   }
 
-  if (file.size > 10 * 1024 * 1024) {
-    // 10MB limit
-    throw new ValidationError("File size exceeds 10MB limit", []);
-  }
   try {
-    // First convert the file to base64
+    // Convertir le fichier en base64
     const fileBuffer = await file.arrayBuffer();
-    const base64Data = Buffer.from(fileBuffer).toString("base64");
+    const base64Data = btoa(String.fromCharCode(...new Uint8Array(fileBuffer)));
 
-    // Initialize the Document Intelligence client
-    const endpoint =
-      process.env.NEXT_PUBLIC_AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT || "";
-    const key = process.env.NEXT_PUBLIC_AZURE_DOCUMENT_INTELLIGENCE_KEY || "";
+    // Initialiser le client avec les variables d'environnement Vite
+    const endpoint = import.meta.env.VITE_AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT;
+    const key = import.meta.env.VITE_AZURE_DOCUMENT_INTELLIGENCE_KEY;
 
     if (!endpoint || !key) {
-      throw new ConfigurationError(
-        "Azure Document Intelligence credentials not configured",
-      );
+      throw new ConfigurationError("Azure Document Intelligence credentials not configured");
     }
 
-    const client = createClient(endpoint, key);
+    const client = DocumentIntelligence(endpoint, { key });
 
-    // Analyze the document
-    const poller = await client.beginAnalyzeDocument("prebuilt-layout", {
-      base64Source: base64Data,
-    });
+    // Analyser le document
+    const initialResponse = await client
+      .path("/documentModels/{modelId}:analyze", "prebuilt-layout")
+      .post({
+        contentType: "application/json",
+        body: {
+          base64Source: base64Data
+        }
+      });
 
-    const { body: result } = await poller.pollUntilDone();
-
-    if (!result) {
-      throw new DocumentAnalysisError("Failed to analyze document");
+    if (isUnexpected(initialResponse)) {
+      throw initialResponse.body.error;
     }
 
-    if (!result.pages || result.pages.length === 0) {
-      throw new DocumentAnalysisError("No pages found in document");
+    const poller = getLongRunningPoller(client, initialResponse);
+    const result = await poller.pollUntilDone();
+    const analyzeResult = result.body?.analyzeResult;
+    
+    if (!analyzeResult) {
+      throw new ExtractError("No analyze result in response");
     }
-
-    // Parse the result into our BankStatement format
-    const bankStatement: BankStatement = {
-      titulaire: {
-        nom: "",
-      },
-      infos_releve: {
-        numero_releve: "",
-        date_emission: "",
-        date_arrete: "",
-        solde_ancien: "",
-      },
-      operations: [],
+    
+    const azureResponse: AzureResponse = {
+      analyzeResult: {
+        pages: analyzeResult.pages || [],
+        tables: analyzeResult.tables || [],
+      }
     };
 
-    // Extract information from the document
-    if (result.pages) {
-      for (const page of result.pages) {
-        for (const line of page.lines || []) {
-          const content = line.content;
+    if (!azureResponse.analyzeResult || !azureResponse.analyzeResult.pages) {
+      throw new ExtractError("No pages found in document");
+    }
 
-          // Extract titulaire information
-          if (content.includes("Titulaire(s) du compte :")) {
-            bankStatement.titulaire.nom = content
-              .replace("Titulaire(s) du compte :", "")
-              .trim();
-          }
+    const transactions: ProcessedTransaction[] = [];
+    let currentTransaction: Partial<ProcessedTransaction> = {};
+    let numeroReleve = "";
+    let titulaire = "";
 
-          // Extract relevé information
-          if (content.includes("Nº")) {
-            bankStatement.infos_releve.numero_releve = content
-              .split("-")[0]
-              .replace("Nº", "")
-              .trim();
-          }
-
-          if (content.includes("Arrêté au")) {
-            bankStatement.infos_releve.date_arrete = content
-              .replace("Arrêté au", "")
-              .trim();
-          }
-
-          if (content.includes("ANCIEN SOLDE CRÉDITEUR")) {
-            const soldeMatch = content.match(/\d+,\d+\s*€/);
-            if (soldeMatch) {
-              bankStatement.infos_releve.solde_ancien = soldeMatch[0];
-            }
-          }
+    // Extraire le numéro de relevé et le titulaire des pages
+    for (const page of azureResponse.analyzeResult.pages) {
+      for (const line of page.lines || []) {
+        const content = line.content || '';
+        if (content.includes("Nº") && content.includes("2025")) {
+          numeroReleve = content.split("-")[0].replace("Nº", "").trim();
         }
-
-        // Extract operations from tables
-        if (result.tables) {
-          for (const table of result.tables) {
-            for (const cell of table.cells) {
-              // Skip header rows
-              if (cell.rowIndex === 0) continue;
-
-              const rowData = table.cells.filter(
-                (c) => c.rowIndex === cell.rowIndex,
-              );
-              if (rowData.length >= 4) {
-                const operation = {
-                  date_operation: rowData[0]?.content || "",
-                  description: rowData[2]?.content || "",
-                  debit: rowData[3]?.content || "",
-                  credit: rowData[4]?.content || "",
-                };
-
-                // Only add if we have at least a date and description
-                if (operation.date_operation && operation.description) {
-                  bankStatement.operations.push(operation);
-                }
-              }
-            }
-          }
+        if (content.includes("Titulaire(s) du compte :")) {
+          titulaire = content.replace("Titulaire(s) du compte :", "").trim();
         }
       }
     }
 
-    // Convert BankStatement to ProcessedTransaction[]
-    const transactions = bankStatement.operations.map((op) => ({
-      id: crypto.randomUUID(),
-      date: op.date_operation,
-      description: op.description,
-      amount: parseFloat(
-        (op.credit || op.debit || "0")
-          .replace(",", ".")
-          .replace("€", "")
-          .trim(),
-      ),
-      metadata: {
-        date_valeur: op.date_operation,
-        numero_releve: bankStatement.infos_releve.numero_releve,
-        titulaire: bankStatement.titulaire.nom,
-      },
-    }));
+    // Parcourir les tables pour extraire les transactions
+    if (azureResponse.analyzeResult.tables) {
+      for (const table of azureResponse.analyzeResult.tables) {
+        let dateIndex = -1;
+        let dateValeurIndex = -1;
+        let descriptionIndex = -1;
+        let debitIndex = -1;
+        let creditIndex = -1;
 
-    // Try to match existing patterns first
-    const categorizedTransactions = await Promise.all(
-      transactions.map(async (transaction) => {
-        const pattern = await findMatchingPattern(transaction.description);
-        if (pattern) {
-          return {
-            ...transaction,
-            category_id: pattern.category_id,
-          };
+        // Identifier les colonnes
+        for (const cell of table.cells) {
+          if (cell.rowIndex === 0) {
+            const content = cell.content?.toLowerCase() || '';
+            if (content.includes('date')) {
+              if (dateIndex === -1) {
+                dateIndex = cell.columnIndex;
+              } else if (content.includes('valeur')) {
+                dateValeurIndex = cell.columnIndex;
+              }
+            }
+            if (content.includes('opération') || content.includes('operation')) descriptionIndex = cell.columnIndex;
+            if (content.includes('débit')) debitIndex = cell.columnIndex;
+            if (content.includes('crédit')) creditIndex = cell.columnIndex;
+          }
         }
-        // If no pattern matches, use AI categorization
-        return transaction;
-      }),
-    );
 
-    // Use AI only for transactions without a matching pattern
-    const uncategorizedTransactions = categorizedTransactions.filter(
-      (t) => !t.category_id,
-    );
-    if (uncategorizedTransactions.length > 0) {
-      const aiCategorized = await categorizeBatch(uncategorizedTransactions);
-      return categorizedTransactions.map((t) =>
-        t.category_id ? t : aiCategorized.find((ai) => ai.id === t.id) || t,
-      );
+        // Si on n'a pas trouvé les colonnes nécessaires, on cherche dans la première ligne de données
+        if (dateIndex === -1 || descriptionIndex === -1) {
+          for (const cell of table.cells) {
+            if (cell.rowIndex === 1) {
+              const content = cell.content || '';
+              if (content && /^\d{2}\/\d{2}$/.test(content)) dateIndex = cell.columnIndex;
+              if (content && content.length > 10) descriptionIndex = cell.columnIndex;
+            }
+          }
+        }
+
+        // Extraire les transactions
+        let currentRow = -1;
+        for (const cell of table.cells) {
+          if (cell.rowIndex === 0) continue; // Skip header
+
+          if (cell.rowIndex !== currentRow) {
+            if (currentTransaction.date && currentTransaction.description) {
+              const completeTransaction: ProcessedTransaction = {
+                id: uuidv4(),
+                date: currentTransaction.date,
+                description: currentTransaction.description,
+                amount: currentTransaction.amount || 0,
+                type: (currentTransaction.amount || 0) < 0 ? 'expense' as TransactionType : 'income' as TransactionType,
+                merchant: currentTransaction.merchant || extractMerchantFromDescription(currentTransaction.description),
+                category_id: detectCategory(currentTransaction.description, currentTransaction.amount || 0),
+                metadata: {
+                  date_valeur: currentTransaction.metadata?.date_valeur || currentTransaction.date,
+                  numero_releve: numeroReleve,
+                  titulaire: titulaire
+                }
+              };
+              transactions.push(completeTransaction);
+            }
+            currentTransaction = {};
+            currentRow = cell.rowIndex;
+          }
+
+          const content = cell.content || '';
+          if (cell.columnIndex === dateIndex) {
+            const dateParts = content.split('/');
+            if (dateParts && dateParts.length === 2) {
+              const date = `2025-${dateParts[1].padStart(2, '0')}-${dateParts[0].padStart(2, '0')}`;
+              currentTransaction.date = date;
+              if (!currentTransaction.metadata) {
+                currentTransaction.metadata = { date_valeur: date, numero_releve: numeroReleve, titulaire: titulaire };
+              }
+            }
+          } else if (cell.columnIndex === dateValeurIndex) {
+            const dateParts = content.split('/');
+            if (dateParts && dateParts.length === 2) {
+              const date = `2025-${dateParts[1].padStart(2, '0')}-${dateParts[0].padStart(2, '0')}`;
+              if (!currentTransaction.metadata) {
+                currentTransaction.metadata = { date_valeur: date, numero_releve: numeroReleve, titulaire: titulaire };
+              } else {
+                currentTransaction.metadata.date_valeur = date;
+              }
+            }
+          } else if (cell.columnIndex === descriptionIndex) {
+            currentTransaction.description = content;
+            currentTransaction.merchant = extractMerchantFromDescription(content);
+          } else if (cell.columnIndex === debitIndex && content) {
+            const amount = parseFloat(content.replace(',', '.').replace(/[^\d.-]/g, ''));
+            if (!isNaN(amount)) {
+              currentTransaction.amount = -amount;
+            }
+          } else if (cell.columnIndex === creditIndex && content) {
+            const amount = parseFloat(content.replace(',', '.').replace(/[^\d.-]/g, ''));
+            if (!isNaN(amount)) {
+              currentTransaction.amount = amount;
+            }
+          }
+        }
+
+        // Ajouter la dernière transaction
+        if (currentTransaction.date && currentTransaction.description) {
+          const completeTransaction: ProcessedTransaction = {
+            id: uuidv4(),
+            date: currentTransaction.date,
+            description: currentTransaction.description,
+            amount: currentTransaction.amount || 0,
+            type: (currentTransaction.amount || 0) < 0 ? 'expense' as TransactionType : 'income' as TransactionType,
+            merchant: currentTransaction.merchant || extractMerchantFromDescription(currentTransaction.description),
+            category_id: detectCategory(currentTransaction.description, currentTransaction.amount || 0),
+            metadata: {
+              date_valeur: currentTransaction.metadata?.date_valeur || currentTransaction.date,
+              numero_releve: numeroReleve,
+              titulaire: titulaire
+            }
+          };
+          transactions.push(completeTransaction);
+        }
+      }
     }
 
-    return categorizedTransactions;
+    // Valider et catégoriser les transactions
+    if (transactions.length === 0) {
+      throw new ExtractError("No transactions found in document");
+    }
+
+    const validationResult = await validateTransactionsBatch(transactions);
+    if (validationResult.errors.length > 0) {
+      console.warn('Validation errors:', validationResult.errors);
+    }
+    return await categorizeBatch(validationResult.valid);
   } catch (error) {
-    console.error(
-      "Error processing PDF with Azure Document Intelligence:",
-      error,
-    );
-
-    if (error instanceof DocumentProcessingError) {
-      throw error;
-    }
-
-    if (error.name === "AbortError") {
-      throw new DocumentAnalysisError("Document analysis request timed out");
-    }
-
-    if (error.status === 401 || error.status === 403) {
-      throw new ConfigurationError(
-        "Invalid Azure credentials or insufficient permissions",
-      );
-    }
-
-    if (error.status === 413) {
-      throw new ValidationError("File size too large for processing", []);
-    }
-
-    if (error.status >= 500) {
-      throw new DocumentAnalysisError(
-        "Azure service is currently unavailable",
-        error,
-      );
-    }
-
-    throw new DocumentAnalysisError("Failed to process PDF document", {
-      originalError: error,
-    });
+    console.error("Error processing PDF with Azure Document Intelligence:", error);
+    throw new DocumentAnalysisError("Failed to process PDF document");
   }
 }
 
 function extractMerchantFromDescription(description: string): string {
-  // Logique simple pour extraire le nom du commerçant
-  // À améliorer selon les formats spécifiques des descriptions
-  const words = description.split(" ");
-  return words[0] || "";
+  // Nettoyer la description
+  const cleanDesc = description.trim().toLowerCase();
+  
+  // Liste des mots à ignorer
+  const ignoreWords = ['paiement', 'par', 'carte', 'virement', 'vers', 'de', 'prelevement', 'retrait'];
+  
+  // Diviser la description en mots
+  const words = cleanDesc.split(/\s+/);
+  
+  // Filtrer les mots à ignorer et prendre le premier mot restant
+  const merchantWords = words.filter(word => !ignoreWords.includes(word));
+  
+  if (merchantWords.length > 0) {
+    // Capitaliser le premier mot
+    return merchantWords[0].charAt(0).toUpperCase() + merchantWords[0].slice(1);
+  }
+  
+  return '';
+}
+
+function detectCategory(description: string, amount: number): string | undefined {
+  const cleanDesc = description.toLowerCase();
+  
+  // Définir les règles de catégorisation
+  const rules = [
+    { keywords: ['carrefour', 'leclerc', 'auchan', 'lidl', 'intermarche', 'franprix', 'monoprix'], category: 'Alimentation' },
+    { keywords: ['sncf', 'ratp', 'navigo', 'uber', 'taxi'], category: 'Transport' },
+    { keywords: ['loyer', 'edf', 'engie', 'eau', 'electricite', 'gaz'], category: 'Logement' },
+    { keywords: ['cinema', 'theatre', 'spotify', 'netflix', 'amazon prime'], category: 'Loisirs' },
+    { keywords: ['pharmacie', 'medecin', 'docteur', 'hopital', 'mutuelle'], category: 'Santé' },
+    { keywords: ['zara', 'h&m', 'uniqlo', 'decathlon'], category: 'Shopping' },
+    { keywords: ['free', 'orange', 'sfr', 'bouygues', 'assurance'], category: 'Services' },
+  ];
+
+  // Détecter la catégorie basée sur les mots-clés
+  for (const rule of rules) {
+    if (rule.keywords.some(keyword => cleanDesc.includes(keyword))) {
+      return rule.category;
+    }
+  }
+
+  // Catégorisation basée sur le montant
+  if (amount > 0) {
+    return 'Revenus';
+  }
+
+  return undefined;
 }
 
 async function processImage(file: File): Promise<ProcessedTransaction[]> {
-  const worker = await createWorker("fra");
-
+  const worker = await createWorker();
   try {
-    const {
-      data: { text },
-    } = await worker.recognize(file);
+    const { data: { text } } = await worker.recognize(file);
     await worker.terminate();
-
-    // Similar to PDF processing, but with OCR text
-    const lines = text.split("\n");
-    const transactions: ProcessedTransaction[] = [];
-
-    for (const line of lines) {
-      const match = line.match(
-        /([0-9]{2}[/-][0-9]{2}[/-][0-9]{4}).*?([0-9]+[.,][0-9]{2})/,
-      );
-      if (match) {
-        transactions.push({
-          id: "",
-          date: match[1],
-          description: line.replace(match[0], "").trim(),
-          amount: parseFloat(match[2].replace(",", ".")),
-          category: "",
-        });
-      }
-    }
-
-    return categorizeBatch(transactions);
+    return processText(text);
   } catch (error) {
-    console.error("Erreur lors de la lecture de l'image:", error);
-    throw new Error("Erreur lors de la lecture de l'image");
+    await worker.terminate();
+    throw error;
   }
+}
+
+async function processText(text: string): Promise<ProcessedTransaction[]> {
+  const transactions: ProcessedTransaction[] = [];
+  const lines = text.split('\n');
+
+  for (const line of lines) {
+    const match = line.match(/^(\d{2}\/\d{2})\s+(.+?)\s+([-]?\d+,\d{2})\s*$/);
+    if (match) {
+      const amount = parseFloat(match[3].replace(',', '.'));
+      transactions.push({
+        id: uuidv4(),
+        date: `2025-${match[1].split('/')[1]}-${match[1].split('/')[0]}`,
+        description: match[2].trim(),
+        amount: amount,
+        type: amount < 0 ? 'expense' as TransactionType : 'income' as TransactionType,
+        merchant: extractMerchantFromDescription(match[2].trim()),
+        category_id: detectCategory(match[2].trim(), amount)
+      });
+    }
+  }
+
+  const validTransactions = await validateTransactionsBatch(transactions);
+  return validTransactions.valid;
 }

@@ -17,28 +17,32 @@ export async function storeTransactions(
       throw new Error("User profile not found");
     }
 
+    // Préparer les transactions pour l'insertion
+    const transactionsToInsert = transactions.map((t) => ({
+      amount: Math.abs(t.amount),
+      type: t.type,
+      description: t.description,
+      date: t.date,
+      category_id: t.category_id,
+      merchant: t.merchant,
+      location: null, // Pour l'instant, on ne gère pas la localisation
+      created_by: userId,
+    }));
+
+    // Insérer les transactions
     const { data: storedTransactions, error: transactionError } = await supabase
       .from("transactions")
-      .insert(
-        transactions.map((t) => ({
-          amount: Math.abs(t.amount),
-          type: t.amount < 0 ? "expense" : "income",
-          description: t.description,
-          date: t.date,
-          category: t.category || "other",
-          created_by: userId,
-        })),
-      )
+      .insert(transactionsToInsert)
       .select();
 
     if (transactionError) throw transactionError;
 
-    // Create equal splits for the user's transactions
+    // Créer les parts de transaction pour l'utilisateur
     if (storedTransactions) {
       const shares = storedTransactions.map((t) => ({
         transaction_id: t.id,
         user_id: userId,
-        split_type: "equal",
+        split_type: "equal" as const,
         amount: t.amount,
         percentage: 100,
       }));
