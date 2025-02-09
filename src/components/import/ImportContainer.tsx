@@ -11,8 +11,15 @@ import {
   ValidationError,
   ExtractError,
 } from "@/lib/errors/documentProcessingErrors";
+import { supabase } from "@/lib/supabase";
+import { storeTransactions as saveTransactions } from "@/lib/services/transaction.service";
+import { createImportRecord, updateImportRecord } from "@/lib/services/import.service";
 
-export default function ImportContainer() {
+export interface ImportContainerProps {
+  onClose?: () => void;
+}
+
+export default function ImportContainer({ onClose }: ImportContainerProps) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string>("");
@@ -20,10 +27,6 @@ export default function ImportContainer() {
   const [currentStatement, setCurrentStatement] =
     useState<BankStatement | null>(null);
   const { toast } = useToast();
-
-  const generateUniqueId = () => {
-    return Date.now().toString(36) + Math.random().toString(36).substring(2);
-  };
 
   const handleFileSelect = async (files: File[]) => {
     setIsProcessing(true);
@@ -39,19 +42,13 @@ export default function ImportContainer() {
         const result = await processFile(file);
         setProgress(70);
 
-        // Ajouter des IDs uniques aux transactions
-        const processedTransactions = result.map((transaction) => ({
-          ...transaction,
-          id: generateUniqueId(),
-        }));
-
         // Mettre à jour les transactions
-        setTransactions(processedTransactions);
+        setTransactions(result);
         setProgress(100);
 
         toast({
           title: "Fichier traité avec succès",
-          description: `${processedTransactions.length} transactions ont été extraites.`,
+          description: `${result.length} transactions ont été extraites.`,
         });
       }
     } catch (err) {
@@ -95,18 +92,60 @@ export default function ImportContainer() {
   };
 
   const handleConfirm = async () => {
+    setIsProcessing(true);
+    setError("");
+
     try {
-      // Ici, vous pouvez ajouter la logique pour sauvegarder les transactions
+      const userId = (await supabase.auth.getUser()).data.user?.id;
+      if (!userId) {
+        throw new Error("User not authenticated");
+      }
+
+      // Créer un enregistrement d'import
+      const importRecord = await createImportRecord({
+        user_id: userId,
+        file_name: "Import du " + new Date().toLocaleDateString(),
+        file_type: "bank_statement",
+        status: "pending",
+        transaction_count: transactions.length,
+      });
+
+      // Stocker les transactions dans Supabase
+      await saveTransactions(transactions, userId);
+
+      // Mettre à jour le statut de l'import
+      await updateImportRecord(importRecord.id, {
+        status: "completed",
+      });
+
+      // Réinitialiser l'état
+      setTransactions([]);
+      setCurrentStatement(null);
+      setProgress(0);
+
+      // Notifier le succès
       toast({
         title: "Import réussi",
-        description: "Les transactions ont été importées avec succès.",
+        description: `${transactions.length} transactions ont été importées avec succès.`,
       });
+
+      // Fermer le modal ou rediriger si nécessaire
+      onClose?.();
     } catch (err) {
+      console.error("Error storing transactions:", err);
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Une erreur est survenue lors de l'import des transactions"
+      );
       toast({
         variant: "destructive",
         title: "Erreur",
-        description: "Erreur lors de la sauvegarde des transactions.",
+        description:
+          "Une erreur est survenue lors de l'import des transactions.",
       });
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -124,9 +163,6 @@ export default function ImportContainer() {
       const transaction = transactions.find((t) => t.id === transactionId);
       if (!transaction) return;
 
-      // Sauvegarder le pattern pour une utilisation future
-      await savePattern(transaction.description, categoryId);
-
       setTransactions((prev) =>
         prev.map((t) =>
           t.id === transactionId ? { ...t, category_id: categoryId } : t,
@@ -136,14 +172,14 @@ export default function ImportContainer() {
       toast({
         title: "Catégorie mise à jour",
         description:
-          "Le pattern a été enregistré pour les futures transactions similaires.",
+          "La catégorie a été mise à jour pour la transaction sélectionnée.",
       });
     } catch (error) {
-      console.error("Error saving pattern:", error);
+      console.error("Error updating category:", error);
       toast({
         variant: "destructive",
         title: "Erreur",
-        description: "Impossible d'enregistrer le pattern.",
+        description: "Impossible de mettre à jour la catégorie.",
       });
     }
   };
@@ -160,13 +196,13 @@ export default function ImportContainer() {
         />
       ) : (
         <ProcessingPreview
-          isProcessing={isProcessing}
-          progress={progress}
-          error={error}
           transactions={transactions}
           onConfirm={handleConfirm}
-          onCancel={handleCancel}
-          onCategoryChange={handleCategoryChange}
+          onCancel={() => {
+            setTransactions([]);
+            setCurrentStatement(null);
+            setProgress(0);
+          }}
         />
       )}
     </div>

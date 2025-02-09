@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TransactionType } from "../types/transaction";
 
 export const transactionSchema = z.object({
   id: z.string().optional(),
@@ -13,14 +14,14 @@ export const transactionSchema = z.object({
   amount: z
     .number()
     .refine((amount) => amount !== 0, { message: "Amount cannot be zero" }),
-  category: z.string().optional(),
+  type: z.enum(['expense', 'income', 'transfer'] as const),
+  category_id: z.string().optional(),
   merchant: z.string().optional(),
-  location: z
-    .object({
-      lat: z.number(),
-      lng: z.number(),
-    })
-    .optional(),
+  metadata: z.object({
+    date_valeur: z.string().optional(),
+    numero_releve: z.string().optional(),
+    titulaire: z.string().optional(),
+  }).optional(),
 });
 
 export type ValidatedTransaction = z.infer<typeof transactionSchema>;
@@ -68,16 +69,18 @@ export function validateTransactions(transactions: any[]): {
   return { valid, errors };
 }
 
-export function sanitizeTransactionData(rawTransaction: any) {
+export function sanitizeTransactionData(rawTransaction: any): Partial<ValidatedTransaction> {
   return {
+    id: rawTransaction.id,
     date: rawTransaction.date?.trim(),
     description: rawTransaction.description?.trim(),
     amount:
       typeof rawTransaction.amount === "string"
         ? parseFloat(rawTransaction.amount.replace(",", "."))
         : rawTransaction.amount,
-    category: rawTransaction.category?.trim(),
+    type: rawTransaction.type || (rawTransaction.amount < 0 ? 'expense' : 'income') as TransactionType,
+    category_id: rawTransaction.category_id,
     merchant: rawTransaction.merchant?.trim(),
-    location: rawTransaction.location,
+    metadata: rawTransaction.metadata,
   };
 }
