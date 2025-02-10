@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import FileUploadZone from "./FileUploadZone";
 import ProcessingPreview from "./ProcessingPreview";
-import { processFile, ProcessedTransaction } from "@/lib/fileProcessing";
+import { processFile } from "@/lib/fileProcessing";
+import { ProcessedTransaction } from "@/lib/fileProcessing/types";
 import { BankStatement } from "@/types/bankStatement";
 import { TransactionDetailsModal } from "./TransactionDetailsModal";
 import { useToast } from "@/components/ui/use-toast";
@@ -36,11 +37,17 @@ export default function ImportContainer({ onClose }: ImportContainerProps) {
     try {
       // Traiter chaque fichier
       for (const file of files) {
+        console.log("Processing file:", file.name, "type:", file.type);
         setProgress(10);
 
         // Traiter le fichier
         const result = await processFile(file);
+        console.log("File processing result:", result);
         setProgress(70);
+
+        if (!result || result.length === 0) {
+          throw new Error("Aucune transaction n'a été trouvée dans le fichier");
+        }
 
         // Mettre à jour les transactions
         setTransactions(result);
@@ -52,6 +59,7 @@ export default function ImportContainer({ onClose }: ImportContainerProps) {
         });
       }
     } catch (err) {
+      console.error("Error in handleFileSelect:", err);
       let errorMessage =
         "Une erreur est survenue lors du traitement du fichier";
       let errorDetails = "";
@@ -78,7 +86,7 @@ export default function ImportContainer({ onClose }: ImportContainerProps) {
         errorDetails = err.message;
       }
 
-      setError(errorMessage);
+      setError(`${errorMessage}${errorDetails ? ': ' + errorDetails : ''}`);
       toast({
         variant: "destructive",
         title: errorMessage,

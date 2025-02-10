@@ -21,6 +21,16 @@ export type Transaction = {
   date: string;
   category_id?: string;
   merchant?: string;
+  bank_statement_id?: string;
+  metadata?: {
+    date_valeur?: string;
+    numero_releve?: string;
+    titulaire?: string;
+    document_name?: string;
+    date_arrete?: string;
+    solde_ancien?: string;
+    solde_nouveau?: string;
+  };
   created_by: string;
   created_at: string;
   updated_at: string;

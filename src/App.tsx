@@ -8,6 +8,7 @@ import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import AuthPage from "./pages/auth";
 import ImportPage from "./pages/import";
 import GroupsPage from "./pages/groups";
+import TransactionsPage from "./pages/transactions";
 import routes from "tempo-routes";
 
 function App() {
@@ -23,6 +24,7 @@ function App() {
                 <Layout>
                   <Routes>
                     <Route path="/" element={<Dashboard />} />
+                    <Route path="/transactions" element={<TransactionsPage />} />
                     <Route path="/groups" element={<GroupsPage />} />
                     <Route path="/groups/:groupId" element={<GroupDashboard />} />
                     <Route path="/import" element={<ImportPage />} />

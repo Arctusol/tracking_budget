@@ -1,4 +1,4 @@
-import { ProcessedTransaction } from "./fileProcessing";
+import { ProcessedTransaction } from "./fileProcessing/types";
 
 type CategoryRule = {
   category: string;

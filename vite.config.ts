@@ -31,6 +31,13 @@ export default defineConfig({
   server: {
     // @ts-ignore
     allowedHosts: true,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:5174',
+        changeOrigin: true,
+        rewrite: (path) => path,
+      },
+    },
   },
   build: {
     rollupOptions: {

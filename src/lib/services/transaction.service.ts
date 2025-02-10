@@ -1,12 +1,24 @@
 import { supabase } from "../supabase";
-import { ProcessedTransaction } from "../fileProcessing";
+import { ProcessedTransaction } from "../fileProcessing/types";
 import { Transaction, TransactionCategory, TransactionFilters } from "@/types/transaction";
+
+// Fonction pour convertir une date du format FR vers ISO
+function convertToISODate(dateStr: string): string {
+  // Gérer les formats possibles (DD/MM/YYYY ou DD-MM-YYYY)
+  const parts = dateStr.split(/[/-]/);
+  if (parts.length !== 3) {
+    throw new Error(`Invalid date format: ${dateStr}`);
+  }
+  // Réorganiser en YYYY-MM-DD
+  return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+}
 
 export async function storeTransactions(
   transactions: ProcessedTransaction[],
   userId: string,
 ) {
   try {
+    // Vérifier le profil utilisateur
     const { data: profile } = await supabase
       .from("profiles")
       .select("id")
@@ -22,10 +34,10 @@ export async function storeTransactions(
       amount: Math.abs(t.amount),
       type: t.type,
       description: t.description,
-      date: t.date,
+      date: convertToISODate(t.date),
       category_id: t.category_id,
       merchant: t.merchant,
-      location: null, // Pour l'instant, on ne gère pas la localisation
+      location: null,
       created_by: userId,
     }));
 
@@ -37,7 +49,7 @@ export async function storeTransactions(
 
     if (transactionError) throw transactionError;
 
-    // Créer les parts de transaction pour l'utilisateur
+    // Créer une part de transaction pour l'utilisateur créateur
     if (storedTransactions) {
       const shares = storedTransactions.map((t) => ({
         transaction_id: t.id,
@@ -235,4 +247,46 @@ export async function deleteCategory(
     .eq("created_by", userId);
 
   if (error) throw error;
+}
+
+/**
+ * Partage une transaction avec un autre utilisateur
+ */
+export async function shareTransaction(
+  transactionId: string,
+  targetUserId: string,
+  splitType: "equal" | "percentage" | "amount" = "equal",
+  splitValue?: number, // pourcentage ou montant selon le splitType
+) {
+  try {
+    // Vérifier que la transaction existe
+    const { data: transaction, error: transactionError } = await supabase
+      .from("transactions")
+      .select("*")
+      .eq("id", transactionId)
+      .single();
+
+    if (transactionError) throw transactionError;
+    if (!transaction) throw new Error("Transaction not found");
+
+    // Créer le partage
+    const share = {
+      transaction_id: transactionId,
+      user_id: targetUserId,
+      split_type: splitType,
+      amount: splitType === "amount" ? splitValue : transaction.amount,
+      percentage: splitType === "percentage" ? splitValue : 100,
+    };
+
+    const { error: shareError } = await supabase
+      .from("transaction_shares")
+      .insert([share]);
+
+    if (shareError) throw shareError;
+
+    return true;
+  } catch (error) {
+    console.error("Error sharing transaction:", error);
+    throw error;
+  }
 }

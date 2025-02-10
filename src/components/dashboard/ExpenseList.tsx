@@ -1,4 +1,4 @@
-import { Transaction, AccountMember } from "@/types/expense";
+import { Transaction } from "@/types/expense";
 import {
   Table,
   TableBody,
@@ -7,12 +7,19 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { getCategoryName } from "@/lib/fileProcessing/constants";
+
+interface Profile {
+  id: string;
+  full_name: string;
+  email: string;
+  avatar_url?: string;
+}
 
 interface TransactionListProps {
   transactions?: Transaction[];
-  members?: AccountMember[];
+  members?: Profile[];
 }
 
 export function ExpenseList({
@@ -28,14 +35,19 @@ export function ExpenseList({
             <TableHead>Description</TableHead>
             <TableHead>Catégorie</TableHead>
             <TableHead>Créé par</TableHead>
-            <TableHead>Partagé avec</TableHead>
             <TableHead className="text-right">Montant</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {transactions.map((transaction) => (
+          {transactions?.map((transaction) => (
             <TableRow key={transaction.id}>
-              <TableCell>{transaction.date.toLocaleDateString()}</TableCell>
+              <TableCell>
+                {new Date(transaction.date).toLocaleDateString('fr-FR', {
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric'
+                })}
+              </TableCell>
               <TableCell>{transaction.description}</TableCell>
               <TableCell>
                 <Badge
@@ -43,34 +55,18 @@ export function ExpenseList({
                     transaction.type === "expense" ? "destructive" : "default"
                   }
                 >
-                  {transaction.category}
+                  {getCategoryName(transaction.category_id)}
                 </Badge>
               </TableCell>
               <TableCell>
-                {members.find((m) => m.id === transaction.createdBy)?.name ||
+                {members.find((m) => m.id === transaction.created_by)?.full_name ||
                   "Inconnu"}
               </TableCell>
-              <TableCell>
-                <div className="flex -space-x-2">
-                  {transaction.sharedWith.map((userId) => {
-                    const member = members.find((m) => m.id === userId);
-                    return (
-                      <Avatar
-                        key={userId}
-                        className="h-6 w-6 border-2 border-white"
-                      >
-                        <AvatarImage src={member?.avatarUrl} />
-                        <AvatarFallback>{member?.name?.[0]}</AvatarFallback>
-                      </Avatar>
-                    );
-                  })}
-                </div>
-              </TableCell>
-              <TableCell
-                className={`text-right ${transaction.type === "expense" ? "text-red-500" : "text-green-500"}`}
-              >
-                {transaction.type === "expense" ? "-" : "+"}
-                {transaction.amount.toFixed(2)} €
+              <TableCell className="text-right">
+                {new Intl.NumberFormat('fr-FR', {
+                  style: 'currency',
+                  currency: 'EUR'
+                }).format(transaction.amount)}
               </TableCell>
             </TableRow>
           ))}

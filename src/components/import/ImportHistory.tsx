@@ -46,14 +46,50 @@ export function ImportHistory() {
     }
   };
 
+  // Load history only on mount and when user changes
   useEffect(() => {
-    loadHistory();
+    let isMounted = true;
+
+    const load = async () => {
+      if (!user || !isMounted) return;
+      await loadHistory();
+    };
+
+    load();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [user]);
+
+  // Handle visibility changes
+  useEffect(() => {
+    // Only reload data if the page has been hidden for more than 5 minutes
+    let lastHiddenTime: number | null = null;
+    const RELOAD_THRESHOLD = 5 * 60 * 1000; // 5 minutes
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        lastHiddenTime = Date.now();
+      } else if (lastHiddenTime) {
+        const hiddenDuration = Date.now() - lastHiddenTime;
+        if (hiddenDuration > RELOAD_THRESHOLD) {
+          loadHistory();
+        }
+        lastHiddenTime = null;
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, [user]);
 
   const getStatusBadge = (status: string) => {
-    const variants: Record<string, "default" | "success" | "destructive"> = {
+    const variants: Record<string, "default" | "destructive" | "secondary" | "outline"> = {
       pending: "default",
-      completed: "success",
+      completed: "secondary",
       failed: "destructive",
     };
 

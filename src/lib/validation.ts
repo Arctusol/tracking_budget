@@ -6,9 +6,9 @@ export const transactionSchema = z.object({
   date: z.string().refine(
     (date) => {
       const parsed = new Date(date);
-      return !isNaN(parsed.getTime()) && parsed <= new Date();
+      return !isNaN(parsed.getTime());
     },
-    { message: "Invalid date or date in future" },
+    { message: "Invalid date format" },
   ),
   description: z.string().min(1, "Description is required").max(255),
   amount: z

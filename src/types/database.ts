@@ -60,3 +60,18 @@ export interface Transaction {
   created_at: string;
   updated_at: string;
 }
+
+export interface BankStatement {
+  id: string;
+  created_at: string;
+  created_by: string;
+  document_name: string;
+  statement_number: string;
+  statement_date: string;
+  account_holder: string | null;
+  opening_balance: number;
+  closing_balance: number;
+  total_debits: number;
+  total_credits: number;
+  net_balance: number;
+}
