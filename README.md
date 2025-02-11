@@ -1,6 +1,49 @@
 # Tracking Budget
 
 Une application moderne de suivi budgétaire développée avec React, TypeScript et Vite.
+```mermaid
+graph TD
+    Start[User Enters SpendWise] --> Auth{Authenticated?}
+    Auth -->|No| Login[Login/Register Page]
+    Login --> AuthProcess[Authentication Process]
+    AuthProcess --> Dashboard
+    Auth -->|Yes| Dashboard[Main Dashboard]
+
+    Dashboard --> ImportData[Import Financial Data]
+    Dashboard --> ViewReports[View Reports]
+    Dashboard --> ManageBudget[Manage Budget]
+    Dashboard --> ShareExpenses[Share Expenses]
+
+    ImportData --> FileType{Select File Type}
+    FileType -->|PDF| UploadPDF[Upload PDF]
+    FileType -->|CSV| UploadCSV[Upload CSV]
+    FileType -->|Image| UploadImage[Upload Image]
+    
+    UploadPDF --> AIProcess[AI Processing]
+    UploadCSV --> AIProcess
+    UploadImage --> AIProcess
+    
+    AIProcess --> AutoCat[Automatic Categorization]
+    AutoCat --> ValidateCat{Validate Categories}
+    ValidateCat -->|Correct| SaveData[Save to Database]
+    ValidateCat -->|Incorrect| ManualCat[Manual Category Adjustment]
+    ManualCat --> SaveData
+    
+    SaveData --> UpdateDash[Update Dashboard]
+    UpdateDash --> GenGraphs[Generate Interactive Graphs]
+    
+    ShareExpenses --> SelectUsers[Select Users to Share With]
+    SelectUsers --> SetPermissions[Set Permissions]
+    SetPermissions --> SendInvites[Send Invitations]
+    
+    ManageBudget --> SetBudget[Set Budget Limits]
+    SetBudget --> AIRecommend[AI Budget Recommendations]
+    AIRecommend --> TrackSpending[Track Spending vs Budget]
+    
+    ViewReports --> SelectPeriod[Select Time Period]
+    SelectPeriod --> CustomizeReport[Customize Report Parameters]
+    CustomizeReport --> GenerateReport[Generate Report]
+```
 
 ## 🚀 Technologies Utilisées
 

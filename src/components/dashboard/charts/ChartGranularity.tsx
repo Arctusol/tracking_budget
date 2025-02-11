@@ -10,7 +10,7 @@ interface ChartGranularityProps {
 export function ChartGranularity({ value, onChange }: ChartGranularityProps) {
   return (
     <div className="flex items-center space-x-2">
-      <span className="text-sm text-gray-500">Granularité:</span>
+      <span className="text-sm text-gray-500">Temporalité:</span>
       <Select value={value} onValueChange={onChange}>
         <SelectTrigger className="w-[120px]">
           <SelectValue />
