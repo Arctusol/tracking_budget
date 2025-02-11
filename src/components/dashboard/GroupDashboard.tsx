@@ -450,7 +450,7 @@ export function GroupDashboard() {
               />
               <TopExpenses 
                 data={topExpenses} 
-                title={`Top 5 des Dépenses ${filters.category !== 'all' ? `- ${CATEGORY_NAMES[filters.category]}` : ''}`}
+                title={`Top 5 des dépenses ${filters.category !== 'all' ? `- ${CATEGORY_NAMES[filters.category]}` : ''}`}
                 onItemClick={handleChartClick}
               />
             </>
@@ -468,7 +468,7 @@ export function GroupDashboard() {
           <div className="w-full">
             <ExpenseOverTime
               data={timeData}
-              title={`Évolution des ${hasExpenseData ? 'Dépenses' : ''} ${hasExpenseData && hasIncomeData ? 'et' : ''} ${hasIncomeData ? 'Revenus' : ''} ${filters.category !== 'all' ? `- ${CATEGORY_NAMES[filters.category]}` : ''}`}
+              title={`Évolution des ${hasExpenseData ? 'dépenses' : ''} ${hasExpenseData && hasIncomeData ? 'et' : ''} ${hasIncomeData ? 'revenus' : ''} ${filters.category !== 'all' ? `- ${CATEGORY_NAMES[filters.category]}` : ''}`}
               granularity={granularity}
               showIncome={hasIncomeData}
               showExpenses={hasExpenseData}

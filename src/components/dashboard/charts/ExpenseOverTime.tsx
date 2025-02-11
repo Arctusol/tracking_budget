@@ -221,6 +221,21 @@ export function ExpenseOverTime({
         <CardTitle>{title}</CardTitle>
         {selectedCategory && subcategories.length > 0 && (
           <div className="flex flex-wrap gap-4">
+            {/* Total income toggle */}
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="show-income"
+                checked={showIncome}
+                onCheckedChange={(checked) => setShowIncome(checked as boolean)}
+              />
+              <label
+                htmlFor="show-income"
+                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+              >
+                Revenus totaux
+              </label>
+            </div>
+
             {/* Total expenses toggle */}
             <div className="flex items-center space-x-2">
               <Checkbox
@@ -286,6 +301,17 @@ export function ExpenseOverTime({
               labelFormatter={formatDate}
             />
             <Legend />
+            {/* Ligne des revenus */}
+            {showIncome && (
+              <Line
+                type="monotone"
+                dataKey="income"
+                stroke="#22c55e"
+                name="Revenus"
+                dot={false}
+              />
+            )}
+
             {/* Ligne des dépenses totales */}
             {showExpenses && (
               <Line
