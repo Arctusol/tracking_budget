@@ -5,14 +5,13 @@ from app.api.routes import category
 
 app = FastAPI(title="Budget Tracking API")
 
-# Configure CORS
-settings = get_settings()
+# Configure CORS with a simpler setup
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.BACKEND_CORS_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=["*"],  # Allows all origins
+    allow_credentials=False,  # Must be False if allow_origins=["*"]
+    allow_methods=["*"],  # Allows all methods
+    allow_headers=["*"],  # Allows all headers
 )
 
 # Include routers

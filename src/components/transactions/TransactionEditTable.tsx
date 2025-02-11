@@ -5,7 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabase";
-import { CATEGORY_IDS, getCategoryName } from "@/lib/fileProcessing/constants";
+import { CATEGORY_IDS, CATEGORY_NAMES, getCategoryName } from "@/lib/fileProcessing/constants";
 
 interface Transaction {
   id: string;
@@ -26,168 +26,213 @@ interface TransactionEditTableProps {
 
 export function TransactionEditTable({ transactions, onTransactionUpdated }: TransactionEditTableProps) {
   const [editingTransaction, setEditingTransaction] = useState<string | null>(null);
-  const [editValues, setEditValues] = useState<Partial<Transaction>>({});
+  const [modifiedTransactions, setModifiedTransactions] = useState<{ [key: string]: Partial<Transaction> }>({});
 
   const handleEdit = (transaction: Transaction) => {
     setEditingTransaction(transaction.id);
-    setEditValues(transaction);
+    if (!modifiedTransactions[transaction.id]) {
+      // S'assurer que nous gardons toutes les propriétés nécessaires de la transaction
+      const { id, description, amount, category_id, date, created_by, type } = transaction;
+      setModifiedTransactions({
+        ...modifiedTransactions,
+        [transaction.id]: { id, description, amount, category_id, date, created_by, type }
+      });
+    }
   };
 
-  const handleSave = async (transaction: Partial<Transaction>) => {
+  const handleChange = (transactionId: string, changes: Partial<Transaction>) => {
+    const transaction = transactions.find(t => t.id === transactionId);
+    if (!transaction) return;
+
+    // Utilisation du updater pattern pour garantir que nous avons toujours le dernier état
+    setModifiedTransactions(prevModified => {
+      if (!prevModified[transactionId]) {
+        const { id, description, amount, category_id, date, created_by, type } = transaction;
+        return {
+          ...prevModified,
+          [transactionId]: { 
+            id, description, amount, category_id, date, created_by, type,
+            ...changes 
+          }
+        };
+      } else {
+        return {
+          ...prevModified,
+          [transactionId]: {
+            ...prevModified[transactionId],
+            ...changes
+          }
+        };
+      }
+    });
+  };
+
+  const handleCategoryDetected = (transactionId: string, category: string) => {
+    const transaction = transactions.find(t => t.id === transactionId);
+    if (!transaction) return;
+
+    // Utilisation du updater pattern pour garantir que nous avons toujours le dernier état
+    setModifiedTransactions(prevModified => {
+      if (!prevModified[transactionId]) {
+        const { id, description, amount, date, created_by, type } = transaction;
+        return {
+          ...prevModified,
+          [transactionId]: { id, description, amount, date, created_by, type, category_id: category }
+        };
+      } else {
+        return {
+          ...prevModified,
+          [transactionId]: {
+            ...prevModified[transactionId],
+            category_id: category
+          }
+        };
+      }
+    });
+  };
+
+  const handleSaveAll = async () => {
     try {
+      // Filtrer les transactions qui ont été réellement modifiées
+      const updates = Object.entries(modifiedTransactions).map(([id, transaction]) => ({
+        id,
+        description: transaction.description,
+        amount: transaction.amount,
+        category_id: transaction.category_id,
+        date: transaction.date,
+        created_by: transaction.created_by,
+        type: transaction.type,
+      }));
+
+      if (updates.length === 0) return;
+
       const { error } = await supabase
         .from('transactions')
-        .update({
-          description: transaction.description,
-          amount: transaction.amount,
-          category_id: transaction.category_id,
-          date: transaction.date,
-        })
-        .eq('id', transaction.id);
+        .upsert(updates);
 
       if (error) throw error;
 
       setEditingTransaction(null);
+      setModifiedTransactions({});
       onTransactionUpdated();
     } catch (error) {
-      console.error('Error updating transaction:', error);
+      console.error('Error updating transactions:', error);
     }
   };
 
   const handleCancel = () => {
     setEditingTransaction(null);
-    setEditValues({});
+    setModifiedTransactions({});
   };
 
-  const handleCategoryDetected = (transactionId: string, category: string) => {
-    const categoryId = Object.entries(CATEGORY_IDS).find(([_, name]) => name === category)?.[0];
-    if (categoryId) {
-      handleSave({
-        ...editValues,
-        id: transactionId,
-        category_id: categoryId,
-      });
-    }
-  };
+  const hasModifications = Object.keys(modifiedTransactions).length > 0;
 
   return (
-    <div className="rounded-md border">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Date</TableHead>
-            <TableHead>Description</TableHead>
-            <TableHead>Catégorie</TableHead>
-            <TableHead>Montant</TableHead>
-            <TableHead>Actions</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {transactions.map((transaction) => (
-            <TableRow key={transaction.id}>
-              <TableCell>
-                {editingTransaction === transaction.id ? (
-                  <Input
-                    type="date"
-                    value={editValues.date?.split('T')[0]}
-                    onChange={(e) => setEditValues({ ...editValues, date: e.target.value })}
-                  />
-                ) : (
-                  new Date(transaction.date).toLocaleDateString('fr-FR')
-                )}
-              </TableCell>
-              <TableCell>
-                {editingTransaction === transaction.id ? (
-                  <Input
-                    value={editValues.description}
-                    onChange={(e) => setEditValues({ ...editValues, description: e.target.value })}
-                  />
-                ) : (
-                  transaction.description
-                )}
-              </TableCell>
-              <TableCell>
-                {editingTransaction === transaction.id ? (
-                  <div className="flex items-center gap-2">
-                    <Select
-                      value={editValues.category_id || transaction.category_id || ''}
-                      onValueChange={(value) => handleSave({ ...transaction, category_id: value })}
-                    >
-                      <SelectTrigger className="w-[180px]">
-                        <SelectValue placeholder="Sélectionner une catégorie" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Object.entries(CATEGORY_IDS).map(([id, name]) => (
-                          <SelectItem key={id} value={id}>
-                            {name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <AutoCategoryButton
-                      description={transaction.description}
-                      currentCategory={getCategoryName(transaction.category_id)}
-                      onCategoryDetected={(category) => {
-                        const categoryId = Object.entries(CATEGORY_IDS).find(([_, name]) => name === category)?.[0];
-                        if (categoryId) {
-                          handleSave({
-                            ...transaction,
-                            category_id: categoryId
-                          });
-                        }
-                      }}
-                    />
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <span>{getCategoryName(transaction.category_id)}</span>
-                    <AutoCategoryButton
-                      description={transaction.description}
-                      currentCategory={getCategoryName(transaction.category_id)}
-                      onCategoryDetected={(category) => {
-                        const categoryId = Object.entries(CATEGORY_IDS).find(([_, name]) => name === category)?.[0];
-                        if (categoryId) {
-                          handleSave({
-                            ...transaction,
-                            category_id: categoryId
-                          });
-                        }
-                      }}
-                    />
-                  </div>
-                )}
-              </TableCell>
-              <TableCell>
-                {editingTransaction === transaction.id ? (
-                  <Input
-                    type="number"
-                    value={editValues.amount}
-                    onChange={(e) => setEditValues({ ...editValues, amount: parseFloat(e.target.value) })}
-                  />
-                ) : (
-                  transaction.amount.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })
-                )}
-              </TableCell>
-              <TableCell>
-                {editingTransaction === transaction.id ? (
-                  <div className="flex gap-2">
-                    <Button size="sm" onClick={() => handleSave(editValues)}>
-                      Enregistrer
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={handleCancel}>
-                      Annuler
-                    </Button>
-                  </div>
-                ) : (
-                  <Button size="sm" variant="outline" onClick={() => handleEdit(transaction)}>
-                    Modifier
-                  </Button>
-                )}
-              </TableCell>
+    <div className="space-y-4">
+      <div className="rounded-md border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Date</TableHead>
+              <TableHead>Description</TableHead>
+              <TableHead>Catégorie</TableHead>
+              <TableHead>Montant</TableHead>
+              <TableHead>Actions</TableHead>
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+          </TableHeader>
+          <TableBody>
+            {transactions.map((transaction) => {
+              const isEditing = editingTransaction === transaction.id;
+              const modifiedTransaction = modifiedTransactions[transaction.id] || transaction;
+
+              return (
+                <TableRow key={transaction.id}>
+                  <TableCell>
+                    {isEditing ? (
+                      <Input
+                        type="date"
+                        value={modifiedTransaction.date?.split('T')[0]}
+                        onChange={(e) => handleChange(transaction.id, { date: e.target.value })}
+                      />
+                    ) : (
+                      new Date(modifiedTransaction.date).toLocaleDateString('fr-FR')
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {isEditing ? (
+                      <Input
+                        value={modifiedTransaction.description}
+                        onChange={(e) => handleChange(transaction.id, { description: e.target.value })}
+                      />
+                    ) : (
+                      modifiedTransaction.description
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      {isEditing ? (
+                        <Select
+                          value={modifiedTransaction.category_id || ''}
+                          onValueChange={(value) => handleChange(transaction.id, { category_id: value })}
+                        >
+                          <SelectTrigger className="w-[180px]">
+                            <SelectValue>
+                              {getCategoryName(modifiedTransaction.category_id)}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            {Object.entries(CATEGORY_IDS).map(([key, id]) => (
+                              <SelectItem key={id} value={id}>
+                                {CATEGORY_NAMES[id]}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <span>{getCategoryName(modifiedTransaction.category_id)}</span>
+                      )}
+                      <AutoCategoryButton
+                        description={modifiedTransaction.description}
+                        currentCategory={getCategoryName(modifiedTransaction.category_id)}
+                        onCategoryDetected={(category) => handleCategoryDetected(transaction.id, category)}
+                      />
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    {isEditing ? (
+                      <Input
+                        type="number"
+                        value={modifiedTransaction.amount}
+                        onChange={(e) => handleChange(transaction.id, { amount: parseFloat(e.target.value) })}
+                      />
+                    ) : (
+                      <span className={modifiedTransaction.type === 'expense' ? 'text-red-500' : 'text-green-500'}>
+                        {(modifiedTransaction.type === 'expense' ? '-' : '+') + 
+                         modifiedTransaction.amount.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
+                      </span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <Button size="sm" variant="outline" onClick={() => handleEdit(transaction)}>
+                      Modifier
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </div>
+      {hasModifications && (
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={handleCancel}>
+            Annuler les modifications
+          </Button>
+          <Button onClick={handleSaveAll}>
+            Enregistrer les modifications
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

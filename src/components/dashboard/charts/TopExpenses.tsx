@@ -15,9 +15,16 @@ interface TopExpensesProps {
     amount: number;
   }>;
   title: string;
+  onItemClick?: (categoryName: string) => void;
 }
 
-export function TopExpenses({ data, title }: TopExpensesProps) {
+export function TopExpenses({ data, title, onItemClick }: TopExpensesProps) {
+  const handleClick = (data: any) => {
+    if (onItemClick && data?.name) {
+      onItemClick(data.name);
+    }
+  };
+
   return (
     <Card className="p-4">
       <h3 className="font-semibold mb-4">{title}</h3>
@@ -43,7 +50,12 @@ export function TopExpenses({ data, title }: TopExpensesProps) {
                 })
               }
             />
-            <Bar dataKey="amount" fill="#6366f1" />
+            <Bar 
+              dataKey="amount" 
+              fill="#6366f1" 
+              onClick={handleClick}
+              cursor={onItemClick ? "pointer" : "default"}
+            />
           </BarChart>
         </ResponsiveContainer>
       </div>

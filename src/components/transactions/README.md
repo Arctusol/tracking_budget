@@ -71,6 +71,108 @@ Composant de filtrage avancé pour la liste des transactions.
 - Catégorie
 - Recherche textuelle (description/marchand)
 
+### TransactionEditTable
+
+Composant de tableau permettant l'édition en lot des transactions, avec support pour la détection automatique des catégories.
+
+**Props:**
+- `transactions: Transaction[]` - Liste des transactions à afficher
+- `onTransactionUpdated: () => void` - Callback appelé après une mise à jour réussie
+
+**Fonctionnalités principales:**
+
+1. **Mode d'édition par ligne**
+   - Chaque transaction peut être éditée individuellement via le bouton "Modifier"
+   - Les champs éditables incluent : date, description, catégorie, montant
+
+2. **Gestion des catégories**
+   - Sélection manuelle via un dropdown
+   - Détection automatique via le bouton "Détecter"
+   - Affichage des noms de catégories au lieu des UUIDs
+
+3. **Détection automatique des catégories**
+   - Intégration avec l'API de détection via le composant `AutoCategoryButton`
+   - Fonctionne sans nécessiter le mode édition
+   - Gestion des mises à jour concurrentes pour les détections multiples
+
+4. **Modifications en lot**
+   - Les modifications sont accumulées dans un état local (`modifiedTransactions`)
+   - Un bouton "Enregistrer les modifications" apparaît dès qu'il y a des changements
+   - Possibilité d'annuler toutes les modifications en cours
+
+**Gestion de l'état:**
+
+```typescript
+// État des modifications en cours
+const [modifiedTransactions, setModifiedTransactions] = useState<{
+  [key: string]: Partial<Transaction>
+}>({});
+
+// État du mode édition
+const [editingTransaction, setEditingTransaction] = useState<string | null>(null);
+```
+
+**Gestion des mises à jour concurrentes:**
+
+Le composant utilise le updater pattern de React pour gérer correctement les mises à jour concurrentes de l'état, particulièrement important pour la détection automatique des catégories :
+
+```typescript
+setModifiedTransactions(prevModified => ({
+  ...prevModified,
+  [transactionId]: {
+    ...prevModified[transactionId],
+    category_id: newCategory
+  }
+}));
+```
+
+**Interaction avec Supabase:**
+
+- Les modifications sont envoyées en lot via `supabase.from('transactions').upsert()`
+- Chaque transaction mise à jour doit inclure les champs obligatoires :
+  - id
+  - description
+  - amount
+  - category_id
+  - date
+  - created_by
+  - type
+
+**Sécurité et validation:**
+
+- Respect des politiques RLS de Supabase
+- Validation des données avant envoi
+- Conservation du champ `created_by` pour la sécurité
+
+**Exemple d'utilisation:**
+
+```tsx
+<TransactionEditTable
+  transactions={transactions}
+  onTransactionUpdated={() => {
+    // Rafraîchir la liste des transactions
+    fetchTransactions();
+  }}
+/>
+```
+
+## Bonnes pratiques
+
+1. **Performance**
+   - Utilisation du mode édition par ligne pour limiter les re-renders
+   - Gestion optimisée des états avec le updater pattern
+   - Envoi des modifications en lot pour réduire les requêtes API
+
+2. **UX**
+   - Feedback visuel immédiat lors des modifications
+   - Possibilité d'annuler les modifications
+   - Support de la détection automatique sans mode édition
+
+3. **Maintenance**
+   - Code TypeScript fortement typé
+   - Séparation claire des responsabilités
+   - Documentation des composants et de leur utilisation
+
 ## Services
 
 Le service `transaction.service.ts` fournit les fonctions suivantes :
@@ -131,4 +233,3 @@ function MyListComponent() {
     />
   );
 }
-```

@@ -8,7 +8,7 @@ import {
   Tooltip,
 } from "recharts";
 
-interface ExpenseByCategoryProps {
+interface IncomeByCategoryProps {
   data: Array<{
     name: string;
     value: number;
@@ -18,7 +18,7 @@ interface ExpenseByCategoryProps {
   onChartClick?: (category: string) => void;
 }
 
-export function ExpenseByCategory({ data, title, onChartClick }: ExpenseByCategoryProps) {
+export function IncomeByCategory({ data, title, onChartClick }: IncomeByCategoryProps) {
   const handleClick = (entry: any) => {
     if (onChartClick) {
       onChartClick(entry.name);

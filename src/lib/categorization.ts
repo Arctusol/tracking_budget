@@ -191,7 +191,7 @@ export function categorizeBatch(
 ): ProcessedTransaction[] {
   return transactions.map((transaction) => ({
     ...transaction,
-    category: transaction.category || categorizeTransaction(transaction),
+    category_id: transaction.category_id || categorizeTransaction(transaction),
   }));
 }
 

@@ -73,6 +73,7 @@ export function DashboardFilters({ onFilterChange, filters }: DashboardFiltersPr
 
   // Liste des catégories principales (sans les sous-catégories)
   const mainCategories = [
+    // Catégories de dépenses
     { id: CATEGORY_IDS.FOOD, name: "Alimentation" },
     { id: CATEGORY_IDS.TRANSPORT, name: "Transport" },
     { id: CATEGORY_IDS.HOUSING, name: "Logement" },
@@ -86,7 +87,14 @@ export function DashboardFilters({ onFilterChange, filters }: DashboardFiltersPr
     { id: CATEGORY_IDS.INSURANCE, name: "Assurance" },
     { id: CATEGORY_IDS.INTERNET, name: "Internet" },
     { id: CATEGORY_IDS.SUBSCRIPTIONS, name: "Abonnements" },
-    { id: CATEGORY_IDS.OTHER, name: "Autre" }
+    { id: CATEGORY_IDS.OTHER, name: "Autre" },
+    // Catégories de revenus
+    { id: CATEGORY_IDS.INCOME, name: "Revenus" },
+    { id: CATEGORY_IDS.SALARY, name: "Salaire" },
+    { id: CATEGORY_IDS.FREELANCE, name: "Freelance" },
+    { id: CATEGORY_IDS.REIMBURSEMENTS, name: "Remboursements" },
+    // Catégories de virements
+    { id: CATEGORY_IDS.TRANSFERS, name: "Virements" }
   ];
 
   return (

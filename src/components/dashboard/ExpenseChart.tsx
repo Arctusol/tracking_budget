@@ -48,7 +48,7 @@ export function ExpenseChart({
   // Group transactions by category and calculate totals
   const categoryData = filteredTransactions.reduce(
     (acc, transaction) => {
-      const category = transaction.category;
+      const category = transaction.category_id;
       if (!acc[category]) {
         acc[category] = 0;
       }
@@ -62,7 +62,7 @@ export function ExpenseChart({
   const data = Object.entries(categoryData).map(([category, amount]) => ({
     name: CATEGORY_LABELS[category] || category,
     value: amount,
-    percentage: ((amount / total) * 100).toFixed(1),
+    percentage: ((Number(amount) / Number(total)) * 100).toFixed(1),
   }));
 
   return (

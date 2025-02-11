@@ -52,7 +52,7 @@ export const CATEGORY_IDS = {
 } as const;
 
 // Mapping inverse pour obtenir le nom de la catégorie à partir de son ID
-const CATEGORY_NAMES: { [key: string]: string } = {
+export const CATEGORY_NAMES: { [key: string]: string } = {
   [CATEGORY_IDS.FOOD]: 'Alimentation',
   [CATEGORY_IDS.TRANSPORT]: 'Transport',
   [CATEGORY_IDS.HOUSING]: 'Logement',
@@ -96,6 +96,30 @@ const CATEGORY_NAMES: { [key: string]: string } = {
   [CATEGORY_IDS.TRANSFER_ANTONIN]: 'Virement Antonin',
   [CATEGORY_IDS.TRANSFER_AMANDINE]: 'Virement Amandine'
 };
+
+// Structure hiérarchique des catégories
+export const CATEGORY_HIERARCHY: { [key: string]: string[] } = {
+  [CATEGORY_IDS.FOOD]: [CATEGORY_IDS.GROCERIES, CATEGORY_IDS.RESTAURANT, CATEGORY_IDS.BAR],
+  [CATEGORY_IDS.TRANSPORT]: [CATEGORY_IDS.PUBLIC_TRANSPORT, CATEGORY_IDS.TAXI, CATEGORY_IDS.FUEL],
+  [CATEGORY_IDS.HOUSING]: [CATEGORY_IDS.RENT, CATEGORY_IDS.UTILITIES, CATEGORY_IDS.INTERNET],
+  [CATEGORY_IDS.HEALTH]: [CATEGORY_IDS.MEDICAL, CATEGORY_IDS.PHARMACY, CATEGORY_IDS.INSURANCE, CATEGORY_IDS.PILL, CATEGORY_IDS.SUPPLEMENTS],
+  [CATEGORY_IDS.SHOPPING]: [CATEGORY_IDS.CLOTHING, CATEGORY_IDS.ELECTRONICS, CATEGORY_IDS.HOME, CATEGORY_IDS.BEAUTY, CATEGORY_IDS.JEWELRY],
+  [CATEGORY_IDS.LEISURE]: [CATEGORY_IDS.ENTERTAINMENT, CATEGORY_IDS.SPORT, CATEGORY_IDS.BOOKS, CATEGORY_IDS.HOTEL],
+  [CATEGORY_IDS.INCOME]: [CATEGORY_IDS.SALARY, CATEGORY_IDS.FREELANCE, CATEGORY_IDS.REIMBURSEMENTS],
+  [CATEGORY_IDS.TRANSFERS]: [CATEGORY_IDS.TRANSFER_ANTONIN, CATEGORY_IDS.TRANSFER_AMANDINE]
+};
+
+// Fonction utilitaire pour obtenir la catégorie parente
+export function getParentCategory(categoryId: string | null | undefined): string | null {
+  if (!categoryId) return null;
+  
+  for (const [parentId, children] of Object.entries(CATEGORY_HIERARCHY)) {
+    if (children.includes(categoryId)) {
+      return parentId;
+    }
+  }
+  return null;
+}
 
 export function getCategoryName(categoryId: string | null | undefined): string {
   if (!categoryId) return 'Non catégorisé';
