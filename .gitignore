@@ -28,3 +28,8 @@ dist-ssr
 **/tempobook/dynamic/
 **/tempobook/storyboards/
 
+src/types/*-compte-*.json
+src/types/*compte*.json
+src/types/releve-de-compte-*.json
+
+.pyc
