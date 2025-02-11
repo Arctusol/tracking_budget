@@ -340,9 +340,9 @@ export function Dashboard() {
   const hasTimeData = timeData.length > 0;
 
   return (
-    <div className="w-full p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
-        <h1 className="text-3xl font-bold">Tableau de Bord SpendWise</h1>
+    <div className="w-full p-5">
+      <div className="max-w-[100%] mx-auto space-y-5">
+        <h1 className="text-3xl font-bold">Spend Wiser</h1>
 
         <DashboardFilters 
           filters={filters}
@@ -360,7 +360,7 @@ export function Dashboard() {
           <ChartGranularity value={granularity} onChange={setGranularity} />
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-[repeat(auto-fit,minmax(400px,1fr))] gap-4 mb-4">
+        <div className="grid grid-cols-1 md:grid-cols-[repeat(auto-fit,minmax(300px,1fr))] gap-4 mb-4">
           {hasExpenseData && (
             <>
               <ExpenseByCategory
