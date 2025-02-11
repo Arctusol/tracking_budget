@@ -1,7 +1,7 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CATEGORY_HIERARCHY, CATEGORY_IDS, CATEGORY_NAMES } from "@/lib/fileProcessing/constants";
 
-export type CategoryGranularityType = string;
+export type CategoryGranularityType = "main" | "all" | string;
 
 interface CategoryGranularityProps {
   value: CategoryGranularityType;
@@ -14,50 +14,58 @@ export function CategoryGranularity({ value, onChange, selectedFilter }: Categor
     const items: JSX.Element[] = [];
 
     if (selectedFilter === "all") {
-      // Si aucune catégorie n'est sélectionnée dans le filtre principal
+      // Options de base
       items.push(
-        <SelectItem key="all" value="all">Toutes les catégories</SelectItem>,
-        <SelectItem key="main" value="main">Catégories principales uniquement</SelectItem>
+        <SelectItem key="main" value="main">Catégories principales uniquement</SelectItem>,
+        <SelectItem key="all" value="all">Afficher toutes les sous-catégories</SelectItem>
       );
 
       // Ajouter toutes les catégories principales et leurs sous-catégories
       Object.entries(CATEGORY_HIERARCHY).forEach(([mainCategoryId, subCategories]) => {
         const mainCategoryName = CATEGORY_NAMES[mainCategoryId];
-        items.push(
-          <SelectItem key={mainCategoryId} value={mainCategoryId} className="font-semibold">
-            {mainCategoryName}
-          </SelectItem>
-        );
+        if (mainCategoryName) {
+          items.push(
+            <SelectItem key={mainCategoryId} value={mainCategoryId} className="font-semibold">
+              {mainCategoryName}
+            </SelectItem>
+          );
 
-        // Ajouter les sous-catégories avec une indentation
-        subCategories.forEach(subCategoryId => {
-          const subCategoryName = CATEGORY_NAMES[subCategoryId];
+          // Ajouter les sous-catégories avec une indentation
+          subCategories.forEach(subCategoryId => {
+            const subCategoryName = CATEGORY_NAMES[subCategoryId];
+            if (subCategoryName) {
+              items.push(
+                <SelectItem key={subCategoryId} value={subCategoryId} className="pl-6">
+                  └ {subCategoryName}
+                </SelectItem>
+              );
+            }
+          });
+        }
+      });
+    } else {
+      // Si une catégorie principale est sélectionnée dans le filtre
+      const mainCategoryName = CATEGORY_NAMES[selectedFilter];
+      const subCategories = CATEGORY_HIERARCHY[selectedFilter] || [];
+      
+      // Options de base pour la catégorie sélectionnée
+      items.push(
+        <SelectItem key="main" value="main">Catégories principales uniquement</SelectItem>,
+        <SelectItem key={selectedFilter} value={selectedFilter} className="font-semibold">
+          {mainCategoryName} (toutes les sous-catégories)
+        </SelectItem>
+      );
+
+      // Ajouter les sous-catégories avec une indentation
+      subCategories.forEach(subCategoryId => {
+        const subCategoryName = CATEGORY_NAMES[subCategoryId];
+        if (subCategoryName) {
           items.push(
             <SelectItem key={subCategoryId} value={subCategoryId} className="pl-6">
               └ {subCategoryName}
             </SelectItem>
           );
-        });
-      });
-    } else {
-      // Si une catégorie principale est sélectionnée dans le filtre
-      const subCategories = CATEGORY_HIERARCHY[selectedFilter] || [];
-      
-      // Option pour voir la catégorie principale uniquement
-      items.push(
-        <SelectItem key={selectedFilter} value={selectedFilter}>
-          {CATEGORY_NAMES[selectedFilter]} uniquement
-        </SelectItem>
-      );
-
-      // Ajouter toutes les sous-catégories
-      subCategories.forEach(subCategoryId => {
-        const subCategoryName = CATEGORY_NAMES[subCategoryId];
-        items.push(
-          <SelectItem key={subCategoryId} value={subCategoryId}>
-            {subCategoryName}
-          </SelectItem>
-        );
+        }
       });
     }
 
@@ -73,7 +81,7 @@ export function CategoryGranularity({ value, onChange, selectedFilter }: Categor
         defaultValue="main"
       >
         <SelectTrigger className="w-[300px]">
-          <SelectValue />
+          <SelectValue placeholder="Catégories principales uniquement" />
         </SelectTrigger>
         <SelectContent>
           {buildCategoryOptions()}

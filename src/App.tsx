@@ -5,6 +5,7 @@ import { GroupDashboard } from "./components/dashboard/GroupDashboard";
 import { Layout } from "./components/layout/Layout";
 import { AuthProvider } from "./lib/auth";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
+import { SpeedInsights } from '@vercel/speed-insights/react';
 import AuthPage from "./pages/auth";
 import ImportPage from "./pages/import";
 import GroupsPage from "./pages/groups";
@@ -37,6 +38,7 @@ function App() {
           />
         </Routes>
       </Suspense>
+      <SpeedInsights />
     </AuthProvider>
   );
 }

@@ -38,6 +38,12 @@ export default defineConfig({
         rewrite: (path) => path,
       },
     },
+    hmr: {
+      overlay: false,
+    },
+    watch: {
+      usePolling: false,
+    },
   },
   build: {
     rollupOptions: {

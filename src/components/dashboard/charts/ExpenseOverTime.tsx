@@ -1,4 +1,4 @@
-import { Card } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import {
   LineChart,
   Line,
@@ -19,9 +19,10 @@ interface ExpenseOverTimeProps {
   }>;
   title: string;
   granularity: GranularityType;
+  showIncome?: boolean;
 }
 
-export function ExpenseOverTime({ data, title, granularity }: ExpenseOverTimeProps) {
+export function ExpenseOverTime({ data, title, granularity, showIncome = true }: ExpenseOverTimeProps) {
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
     switch (granularity) {
@@ -50,10 +51,12 @@ export function ExpenseOverTime({ data, title, granularity }: ExpenseOverTimePro
   };
 
   return (
-    <Card className="p-4">
-      <h3 className="font-semibold mb-4">{title}</h3>
-      <div className="h-[300px]">
-        <ResponsiveContainer width="100%" height="100%">
+    <Card>
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <ResponsiveContainer width="100%" height={400}>
           <LineChart data={data}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis
@@ -87,16 +90,18 @@ export function ExpenseOverTime({ data, title, granularity }: ExpenseOverTimePro
               name="Dépenses"
               strokeWidth={2}
             />
-            <Line
-              type="monotone"
-              dataKey="income"
-              stroke="#22c55e"
-              name="Revenus"
-              strokeWidth={2}
-            />
+            {showIncome && (
+              <Line
+                type="monotone"
+                dataKey="income"
+                stroke="#10b981"
+                name="Revenus"
+                strokeWidth={2}
+              />
+            )}
           </LineChart>
         </ResponsiveContainer>
-      </div>
+      </CardContent>
     </Card>
   );
 }

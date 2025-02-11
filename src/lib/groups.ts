@@ -1,15 +1,33 @@
 import { supabase } from './supabase';
 import type { Group, GroupMember, Profile } from '@/types/database';
 
-export async function createGroup(name: string, description?: string) {
-  const { data: group, error } = await supabase
+interface CreateGroupData {
+  name: string;
+  description?: string;
+  created_by: string;
+}
+
+export async function createGroup(data: CreateGroupData) {
+  const { data: newGroup, error: groupError } = await supabase
     .from('groups')
-    .insert([{ name, description }])
+    .insert([data])
     .select()
     .single();
 
-  if (error) throw error;
-  return group;
+  if (groupError) throw groupError;
+
+  // Ajouter le créateur comme membre admin
+  const { error: memberError } = await supabase
+    .from('group_members')
+    .insert([{
+      group_id: newGroup.id,
+      user_id: data.created_by,
+      role: 'admin'
+    }]);
+
+  if (memberError) throw memberError;
+
+  return newGroup;
 }
 
 export async function getMyGroups() {

@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { createGroup } from '@/lib/groups';
 import { useToast } from '@/components/ui/use-toast';
+import { useAuth } from '@/lib/auth';
 
 interface CreateGroupDialogProps {
   open: boolean;
@@ -18,13 +19,20 @@ export function CreateGroupDialog({ open, onOpenChange, onGroupCreated }: Create
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
+  const { user } = useAuth();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
 
     try {
-      await createGroup(name, description);
+      if (!user) throw new Error('Non authentifié');
+      
+      await createGroup({
+        name,
+        description,
+        created_by: user.id
+      });
       toast({
         title: 'Groupe créé',
         description: 'Le groupe a été créé avec succès.',
@@ -34,6 +42,7 @@ export function CreateGroupDialog({ open, onOpenChange, onGroupCreated }: Create
       setName('');
       setDescription('');
     } catch (error) {
+      console.error('Erreur lors de la création du groupe:', error);
       toast({
         variant: 'destructive',
         title: 'Erreur',

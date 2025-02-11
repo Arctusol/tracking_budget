@@ -10,8 +10,33 @@ import {
   ArrowUpIcon,
   TrendingUp,
   Users,
+  UserPlus,
+  Plus,
 } from "lucide-react";
 import type { Transaction, Group, Profile } from '@/types/database';
+import { Button } from '@/components/ui/button';
+import { AddMemberDialog } from '@/components/groups/AddMemberDialog';
+import { DashboardFilters, FilterOptions } from "@/components/dashboard/DashboardFilters";
+import { StatsCards } from '@/components/dashboard/stats/StatsCards';
+import { CategoryGranularity, CategoryGranularityType } from '@/components/dashboard/charts/CategoryGranularity';
+import { ChartGranularity, GranularityType } from '@/components/dashboard/charts/ChartGranularity';
+import { ExpenseByCategory } from '@/components/dashboard/charts/ExpenseByCategory';
+import { IncomeByCategory } from '@/components/dashboard/charts/IncomeByCategory';
+import { ExpenseOverTime } from '@/components/dashboard/charts/ExpenseOverTime';
+import { TopExpenses } from '@/components/dashboard/charts/TopExpenses';
+import { getCategoryName, getParentCategory, CATEGORY_HIERARCHY, CATEGORY_IDS, CATEGORY_NAMES, CATEGORY_COLORS } from "@/lib/fileProcessing/constants";
+import { AddGroupTransactionsDialog } from '../groups/AddGroupTransactionsDialog';
+import { useCategoryGranularity } from '@/hooks/useCategoryGranularity';
+import { usePersistedFilters } from '@/hooks/usePersistedFilters';
+import { usePageVisibility } from '@/hooks/usePageVisibility';
+
+type Trend = "up" | "down" | "neutral";
+
+interface Stat {
+  name: string;
+  value: string;
+  trend: Trend;
+}
 
 interface GroupStats {
   balance: number;
@@ -25,15 +50,29 @@ export function GroupDashboard() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [group, setGroup] = useState<Group | null>(null);
   const [members, setMembers] = useState<Profile[]>([]);
-  const [stats, setStats] = useState<GroupStats>({
+  const [stats, setStats] = useState({
     balance: 0,
-    monthlyIncome: 0,
     monthlyExpenses: 0,
-    memberShares: {},
+    transfersAmandine: 0,
+    transfersAntonin: 0,
   });
+  const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
+  const [filteredTransactions, setFilteredTransactions] = useState<Transaction[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [granularity, setGranularity] = useState<GranularityType>("month");
+  const { categoryGranularity, handleGranularityChange } = useCategoryGranularity({
+    onTransactionsLoaded: (data) => {
+      setTransactions(data);
+      applyFilters(data, filters);
+    },
+    groupId
+  });
+  const { filters, updateFilters } = usePersistedFilters('group', groupId);
+  const [isAddTransactionsOpen, setIsAddTransactionsOpen] = useState(false);
+  usePageVisibility();
 
   useEffect(() => {
-    if (!groupId) return;
+    if (!groupId || document.hidden) return;
     loadGroupData();
   }, [groupId]);
 
@@ -74,137 +113,331 @@ export function GroupDashboard() {
       if (transactionsError) throw transactionsError;
       setTransactions(transactionsData);
 
-      // Calculer les statistiques
-      const now = new Date();
-      const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-      
-      const monthlyTransactions = transactionsData.filter(
-        (t: Transaction) => new Date(t.date) >= firstDayOfMonth
-      );
-
-      const monthlyIncome = monthlyTransactions
-        .filter((t: Transaction) => t.type === 'income')
-        .reduce((sum: number, t: Transaction) => sum + t.amount, 0);
-
-      const monthlyExpenses = monthlyTransactions
-        .filter((t: Transaction) => t.type === 'expense')
-        .reduce((sum: number, t: Transaction) => sum + t.amount, 0);
-
-      const balance = monthlyIncome - monthlyExpenses;
-
-      // Calculer la part de chaque membre
-      const memberShares: Record<string, number> = {};
-      memberProfiles.forEach((member: Profile) => {
-        const memberExpenses = monthlyTransactions
-          .filter((t: Transaction) => t.type === 'expense' && t.created_by === member.id)
-          .reduce((sum: number, t: Transaction) => sum + t.amount, 0);
-        memberShares[member.id] = memberExpenses;
-      });
-
-      setStats({
-        balance,
-        monthlyIncome,
-        monthlyExpenses,
-        memberShares,
-      });
+      // Appel du filtrage sur l'ensemble des transactions du groupe
+      applyFilters(transactionsData, filters);
 
     } catch (error) {
       console.error('Error loading group data:', error);
     }
   }
 
+  // Mise à jour de la fonction applyFilters pour calculer les stats comme dans Dashboard.tsx
+  const applyFilters = (transactions: Transaction[], currentFilters: FilterOptions) => {
+    let filtered = [...transactions];
+
+    if (currentFilters.search) {
+      const searchLower = currentFilters.search.toLowerCase();
+      filtered = filtered.filter(
+        (t) => t.description.toLowerCase().includes(searchLower)
+      );
+    }
+
+    if (currentFilters.category && currentFilters.category !== "all") {
+      filtered = filtered.filter((t) => {
+        const parentCategory = getParentCategory(t.category_id);
+        return t.category_id === currentFilters.category ||
+               (parentCategory === currentFilters.category) ||
+               (CATEGORY_HIERARCHY[currentFilters.category]?.includes(t.category_id || ''));
+      });
+    }
+
+    if (currentFilters.startDate && currentFilters.endDate) {
+      filtered = filtered.filter((t) => {
+        const date = new Date(t.date);
+        return date >= currentFilters.startDate! && date <= currentFilters.endDate!;
+      });
+    }
+
+    setFilteredTransactions(filtered);
+
+    // Calcul des stats comme dans Dashboard.tsx
+    const totalExpenses = filtered
+      .filter((t: Transaction) => t.type === "expense")
+      .reduce((sum: number, t: Transaction) => sum + (t.amount || 0), 0);
+
+    const totalIncome = filtered
+      .filter((t: Transaction) => t.type === "income")
+      .reduce((sum: number, t: Transaction) => sum + (t.amount || 0), 0);
+
+    const balance = filtered
+      .reduce((sum: number, t: Transaction) => {
+        return sum + (t.type === "income" ? t.amount : -t.amount);
+      }, 0);
+
+    const transfersAmandine = filtered
+      .filter((t: Transaction) => t.category_id === CATEGORY_IDS.TRANSFER_AMANDINE)
+      .reduce((sum: number, t: Transaction) => sum + (t.amount || 0), 0);
+
+    const transfersAntonin = filtered
+      .filter((t: Transaction) => t.category_id === CATEGORY_IDS.TRANSFER_ANTONIN)
+      .reduce((sum: number, t: Transaction) => sum + (t.amount || 0), 0);
+
+    setStats({
+      balance,
+      monthlyExpenses: totalExpenses,
+      transfersAmandine,
+      transfersAntonin
+    });
+  };
+
+  // Copie de aggregateTransactionsByCategory depuis Dashboard.tsx
+  const aggregateTransactionsByCategory = (transactions: Transaction[], type: "expense" | "income") => {
+    return transactions
+      .filter((t) => t.type === type)
+      .reduce((acc, t) => {
+        if (!t.category_id) {
+          const categoryName = "Non catégorisé";
+          acc[categoryName] = (acc[categoryName] || 0) + t.amount;
+          return acc;
+        }
+        if (categoryGranularity === "main") {
+          const parentCategory = getParentCategory(t.category_id);
+          if (parentCategory) {
+            const parentName = getCategoryName(parentCategory);
+            acc[parentName] = (acc[parentName] || 0) + t.amount;
+          } else {
+            const categoryName = getCategoryName(t.category_id);
+            acc[categoryName] = (acc[categoryName] || 0) + t.amount;
+          }
+        } else if (categoryGranularity === "all") {
+          const categoryName = getCategoryName(t.category_id);
+          acc[categoryName] = (acc[categoryName] || 0) + t.amount;
+        } else {
+          const selectedCategory = categoryGranularity;
+          const parentCategory = getParentCategory(t.category_id);
+          if (selectedCategory === t.category_id) {
+            const categoryName = getCategoryName(t.category_id);
+            acc[categoryName] = (acc[categoryName] || 0) + t.amount;
+          } else if (selectedCategory === parentCategory) {
+            const categoryName = getCategoryName(t.category_id);
+            acc[categoryName] = (acc[categoryName] || 0) + t.amount;
+          }
+        }
+        return acc;
+      }, {} as Record<string, number>);
+  };
+
+  // Copie de groupTransactionsByDate depuis Dashboard.tsx
+  const groupTransactionsByDate = (transactions: Transaction[]) => {
+    const grouped = transactions.reduce((acc, transaction) => {
+      let dateKey: string;
+      const date = new Date(transaction.date);
+      switch (granularity) {
+        case "day":
+          dateKey = date.toISOString().split('T')[0];
+          break;
+        case "week":
+          const startOfWeek = new Date(date);
+          startOfWeek.setDate(date.getDate() - date.getDay());
+          dateKey = startOfWeek.toISOString().split('T')[0];
+          break;
+        case "month":
+          dateKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+          break;
+        case "year":
+          dateKey = `${date.getFullYear()}`;
+          break;
+      }
+      if (!acc[dateKey]) {
+        acc[dateKey] = { expenses: 0, income: 0 };
+      }
+      if (transaction.type === "expense") {
+        acc[dateKey].expenses += transaction.amount;
+      } else {
+        acc[dateKey].income += transaction.amount;
+      }
+      return acc;
+    }, {} as Record<string, { expenses: number; income: number }>);
+    return Object.entries(grouped)
+      .map(([date, values]) => ({ date, ...values }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+  };
+
+  const handleFilterChange = (newFilters: FilterOptions) => {
+    updateFilters(newFilters);
+    if (newFilters.category !== filters.category) {
+      if (newFilters.category === "all") {
+        handleGranularityChange("all", filters);
+      } else {
+        handleGranularityChange(newFilters.category, newFilters);
+      }
+    }
+    applyFilters(transactions, newFilters);
+  };
+
+  const handleChartClick = (categoryName: string) => {
+    const categoryId = Object.entries(CATEGORY_NAMES).find(
+      ([, name]) => name === categoryName
+    )?.[0];
+    setSelectedCategory(categoryId || null);
+  };
+
+  // Calcul des données pour les graphiques (copiés depuis Dashboard.tsx)
+  const expensesByCategory = aggregateTransactionsByCategory(filteredTransactions, "expense");
+  const incomesByCategory = aggregateTransactionsByCategory(filteredTransactions, "income");
+  const categoryData = Object.entries(expensesByCategory).map(
+    ([name, value]) => ({
+      name,
+      value,
+      color: CATEGORY_COLORS[name] || CATEGORY_COLORS['Autre'],
+    })
+  );
+  const incomeData = Object.entries(incomesByCategory).map(
+    ([name, value]) => ({
+      name,
+      value,
+      color: CATEGORY_COLORS[name] || CATEGORY_COLORS['Autre'],
+    })
+  );
+  const timeData = groupTransactionsByDate(filteredTransactions);
+  const topExpenses = filteredTransactions
+    .filter((t) => t.type === "expense")
+    .sort((a, b) => b.amount - a.amount)
+    .slice(0, 5)
+    .map((t) => ({
+      name: t.description,
+      amount: t.amount,
+    }));
+
+  // Ajout de ces vérifications avant le return
+  const hasIncomeData = Object.keys(incomesByCategory).length > 0;
+  const hasExpenseData = Object.keys(expensesByCategory).length > 0;
+
   if (!group) return null;
 
-  const statsDisplay = [
+  const statsDisplay: Stat[] = [
     {
-      name: "Solde du Groupe",
-      value: stats.balance.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' }),
+      name: "Solde Global",
+      value: stats.balance.toLocaleString("fr-FR", {
+        style: "currency",
+        currency: "EUR",
+      }),
       trend: stats.balance >= 0 ? "up" : "down",
     },
     {
-      name: "Revenus du Mois",
-      value: stats.monthlyIncome.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' }),
-      trend: "up",
-    },
-    {
-      name: "Dépenses du Mois",
-      value: stats.monthlyExpenses.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' }),
+      name: "Dépenses Totales",
+      value: stats.monthlyExpenses.toLocaleString("fr-FR", {
+        style: "currency",
+        currency: "EUR",
+      }),
       trend: "down",
     },
+    {
+      name: "Virements Amandine",
+      value: stats.transfersAmandine.toLocaleString("fr-FR", {
+        style: "currency",
+        currency: "EUR",
+      }),
+      trend: "neutral",
+    },
+    {
+      name: "Virements Antonin",
+      value: stats.transfersAntonin.toLocaleString("fr-FR", {
+        style: "currency",
+        currency: "EUR",
+      }),
+      trend: "neutral",
+    },
   ];
+
+  // Mise à jour du handler
+  const handleCategoryGranularityChange = (value: CategoryGranularityType) => {
+    handleGranularityChange(value, filters);
+  };
 
   return (
     <div className="w-full p-6">
       <div className="max-w-7xl mx-auto space-y-6">
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold">{group.name}</h1>
-            <p className="text-muted-foreground">{group.description}</p>
-          </div>
-          <div className="flex -space-x-2">
-            {members.map((member) => (
-              <Avatar key={member.id} className="border-2 border-background">
-                <AvatarImage src={member.avatar_url || undefined} />
-                <AvatarFallback>
-                  {member.full_name.split(' ').map(n => n[0]).join('')}
-                </AvatarFallback>
-              </Avatar>
-            ))}
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-          {statsDisplay.map((stat) => (
-            <div key={stat.name} className="bg-white p-4 rounded-lg shadow">
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-muted-foreground">{stat.name}</p>
-                {stat.trend === "up" && (
-                  <ArrowUpIcon className="h-4 w-4 text-green-500" />
-                )}
-                {stat.trend === "down" && (
-                  <ArrowDownIcon className="h-4 w-4 text-red-500" />
-                )}
-              </div>
-              <p className="text-2xl font-bold mt-2">{stat.value}</p>
-            </div>
-          ))}
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-          {members.map((member) => (
-            <Card key={member.id} className="p-4">
-              <div className="flex items-center space-x-4">
-                <Avatar>
-                  <AvatarImage src={member.avatar_url || undefined} />
+          <div className="flex items-center space-x-4">
+            <h1 className="text-3xl font-bold">{group?.name}</h1>
+            <div className="flex -space-x-2">
+              {members.map((member) => (
+                <Avatar key={member.id} className="border-2 border-background">
+                  <AvatarImage src={member.avatar_url} />
                   <AvatarFallback>
-                    {member.full_name.split(' ').map(n => n[0]).join('')}
+                    {member.full_name?.split(' ').map((n: string) => n[0]).join('')}
                   </AvatarFallback>
                 </Avatar>
-                <div>
-                  <h3 className="font-semibold">{member.full_name}</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Dépenses du mois: {stats.memberShares[member.id]?.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
-                  </p>
-                </div>
-              </div>
-            </Card>
-          ))}
+              ))}
+            </div>
+          </div>
+          <div className="flex items-center space-x-2">
+            <Button onClick={() => setIsAddMemberOpen(true)} variant="outline">
+              <UserPlus className="mr-2 h-4 w-4" />
+              Ajouter un membre
+            </Button>
+            <Button onClick={() => setIsAddTransactionsOpen(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              Ajouter des transactions
+            </Button>
+          </div>
         </div>
 
-        <div className="grid gap-6 md:grid-cols-2">
-          <ExpenseChart
-            transactions={transactions}
-            type="expense"
-            title="Dépenses par Catégorie"
+        <DashboardFilters 
+          filters={filters}
+          onFilterChange={handleFilterChange}
+        />
+
+        <StatsCards stats={statsDisplay} />
+
+        <div className="flex justify-end gap-4 mb-4">
+          <CategoryGranularity 
+            value={categoryGranularity} 
+            onChange={handleCategoryGranularityChange}
+            selectedFilter={filters.category}
           />
-          <ExpenseChart
-            transactions={transactions}
-            type="income"
-            title="Revenus par Catégorie"
+          <ChartGranularity value={granularity} onChange={setGranularity} />
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-1 gap-4 mb-4">
+          {hasExpenseData && (
+            <ExpenseByCategory
+              data={categoryData}
+              title="Dépenses par catégorie"
+              onChartClick={handleChartClick}
+            />
+          )}
+          {hasIncomeData && (
+            <IncomeByCategory
+              data={incomeData}
+              title="Revenus par catégorie"
+              onChartClick={handleChartClick}
+            />
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-1 gap-4">
+          <ExpenseOverTime
+            data={timeData}
+            title="Évolution des Dépenses et Revenus"
+            granularity={granularity}
+            showIncome={hasIncomeData}
           />
+          {hasExpenseData && (
+            <TopExpenses 
+              data={topExpenses} 
+              title="Top 5 des Dépenses"
+              onItemClick={handleChartClick}
+            />
+          )}
         </div>
 
         <ExpenseList transactions={transactions} members={members} />
+
+        <AddMemberDialog
+          groupId={groupId}
+          open={isAddMemberOpen}
+          onOpenChange={setIsAddMemberOpen}
+          onMemberAdded={loadGroupData}
+        />
+
+        <AddGroupTransactionsDialog
+          groupId={groupId}
+          open={isAddTransactionsOpen}
+          onOpenChange={setIsAddTransactionsOpen}
+          onTransactionsAdded={loadGroupData}
+        />
       </div>
     </div>
   );
