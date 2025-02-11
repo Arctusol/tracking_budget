@@ -33,3 +33,5 @@ src/types/*compte*.json
 src/types/releve-de-compte-*.json
 
 .pyc
+
+supabase/
