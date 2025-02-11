@@ -225,11 +225,19 @@ export function GroupDashboard() {
       }, {} as Record<string, number>);
   };
 
+  interface TimeDataPoint {
+    date: string;
+    expenses: number;
+    income: number;
+    [key: string]: number | string;
+  }
+
   // Copie de groupTransactionsByDate depuis Dashboard.tsx
   const groupTransactionsByDate = (transactions: Transaction[]) => {
     const grouped = transactions.reduce((acc, transaction) => {
       let dateKey: string;
       const date = new Date(transaction.date);
+      
       switch (granularity) {
         case "day":
           dateKey = date.toISOString().split('T')[0];
@@ -246,19 +254,47 @@ export function GroupDashboard() {
           dateKey = `${date.getFullYear()}`;
           break;
       }
+
       if (!acc[dateKey]) {
-        acc[dateKey] = { expenses: 0, income: 0 };
+        acc[dateKey] = {
+          date: dateKey,
+          expenses: 0,
+          income: 0
+        } as TimeDataPoint;
+
+        // Initialiser les sous-catégories si une catégorie est sélectionnée
+        if (filters.category !== 'all') {
+          acc[dateKey][`total_${filters.category}`] = 0;
+          CATEGORY_HIERARCHY[filters.category]?.forEach(subCat => {
+            acc[dateKey][subCat] = 0;
+          });
+        }
       }
+
       if (transaction.type === "expense") {
         acc[dateKey].expenses += transaction.amount;
+        
+        // Ajouter aux totaux des catégories si pertinent
+        if (filters.category !== 'all') {
+          if (transaction.category_id === filters.category ||
+              getParentCategory(transaction.category_id) === filters.category ||
+              CATEGORY_HIERARCHY[filters.category]?.includes(transaction.category_id)) {
+            (acc[dateKey][`total_${filters.category}`] as number) += transaction.amount;
+          }
+          
+          // Ajouter aux sous-catégories
+          if (CATEGORY_HIERARCHY[filters.category]?.includes(transaction.category_id)) {
+            (acc[dateKey][transaction.category_id] as number) += transaction.amount;
+          }
+        }
       } else {
         acc[dateKey].income += transaction.amount;
       }
+
       return acc;
-    }, {} as Record<string, { expenses: number; income: number }>);
-    return Object.entries(grouped)
-      .map(([date, values]) => ({ date, ...values }))
-      .sort((a, b) => a.date.localeCompare(b.date));
+    }, {} as Record<string, TimeDataPoint>);
+
+    return Object.values(grouped).sort((a, b) => a.date.localeCompare(b.date));
   };
 
   const handleFilterChange = (newFilters: FilterOptions) => {
@@ -436,6 +472,9 @@ export function GroupDashboard() {
               granularity={granularity}
               showIncome={hasIncomeData}
               showExpenses={hasExpenseData}
+              selectedCategory={filters.category}
+              categoryGranularity={categoryGranularity}
+              transactions={filteredTransactions}
             />
           </div>
         )}

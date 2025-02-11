@@ -51,8 +51,11 @@ export function ExpenseList({
               <TableCell>{transaction.description}</TableCell>
               <TableCell>
                 <Badge
-                  variant={
-                    transaction.type === "expense" ? "destructive" : "default"
+                  variant={transaction.type === "expense" ? "destructive" : "secondary"}
+                  className={
+                    transaction.type === "expense" 
+                      ? "bg-red-100 hover:bg-red-200 text-red-700" 
+                      : "bg-green-100 hover:bg-green-200 text-green-700"
                   }
                 >
                   {getCategoryName(transaction.category_id)}
@@ -62,7 +65,12 @@ export function ExpenseList({
                 {members.find((m) => m.id === transaction.created_by)?.full_name ||
                   "Inconnu"}
               </TableCell>
-              <TableCell className="text-right">
+              <TableCell className={`text-right ${
+                transaction.type === "expense" 
+                  ? "text-red-600" 
+                  : "text-green-600"
+              }`}>
+                {transaction.type === "expense" ? "- " : "+ "}
                 {new Intl.NumberFormat('fr-FR', {
                   style: 'currency',
                   currency: 'EUR'

@@ -36,6 +36,13 @@ interface Stat {
   trend: Trend;
 }
 
+interface TimeDataPoint {
+  date: string;
+  expenses: number;
+  income: number;
+  [key: string]: number | string;
+}
+
 export function Dashboard() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -187,6 +194,12 @@ export function Dashboard() {
   };
 
   const groupTransactionsByDate = (transactions: Transaction[]) => {
+    console.log('Grouping transactions by date:', {
+      transactionsCount: transactions.length,
+      granularity,
+      selectedCategory: filters.category
+    });
+
     const grouped = transactions.reduce((acc, transaction) => {
       let dateKey: string;
       const date = new Date(transaction.date);
@@ -208,27 +221,69 @@ export function Dashboard() {
           break;
       }
 
+      // Initialize the data point if it doesn't exist
       if (!acc[dateKey]) {
         acc[dateKey] = {
+          date: dateKey,
           expenses: 0,
           income: 0
-        };
+        } as TimeDataPoint;
+
+        // Initialize category totals if a category is selected
+        if (filters.category !== 'all') {
+          // Initialize main category total
+          acc[dateKey][`total_${filters.category}`] = 0;
+          
+          // Initialize all subcategory totals
+          const subcategories = CATEGORY_HIERARCHY[filters.category] || [];
+          subcategories.forEach(subCat => {
+            acc[dateKey][subCat] = 0;
+          });
+        }
       }
 
+      // Update totals based on transaction type
       if (transaction.type === "expense") {
+        // Update global expenses
         acc[dateKey].expenses += transaction.amount;
+        
+        if (filters.category !== 'all') {
+          const isMainCategory = transaction.category_id === filters.category;
+          const isSubcategory = CATEGORY_HIERARCHY[filters.category]?.includes(transaction.category_id);
+          
+          // Update category total if transaction belongs to this category or its subcategories
+          if (isMainCategory || isSubcategory) {
+            console.log('Adding to category total:', {
+              date: dateKey,
+              amount: transaction.amount,
+              category: filters.category,
+              transactionCategory: transaction.category_id
+            });
+            const currentTotal = (acc[dateKey][`total_${filters.category}`] as number) || 0;
+            acc[dateKey][`total_${filters.category}`] = currentTotal + transaction.amount;
+          }
+          
+          // Update subcategory total if transaction belongs to a subcategory
+          if (isSubcategory) {
+            console.log('Adding to subcategory:', {
+              date: dateKey,
+              amount: transaction.amount,
+              subcategory: transaction.category_id
+            });
+            const currentSubTotal = (acc[dateKey][transaction.category_id] as number) || 0;
+            acc[dateKey][transaction.category_id] = currentSubTotal + transaction.amount;
+          }
+        }
       } else {
         acc[dateKey].income += transaction.amount;
       }
 
       return acc;
-    }, {} as Record<string, { expenses: number; income: number }>);
+    }, {} as Record<string, TimeDataPoint>);
 
-    return Object.entries(grouped).map(([date, values]) => ({
-      date,
-      expenses: values.expenses,
-      income: values.income
-    })).sort((a, b) => a.date.localeCompare(b.date));
+    const result = Object.values(grouped).sort((a, b) => a.date.localeCompare(b.date));
+    console.log('Grouped data result:', result);
+    return result;
   };
 
   const aggregateTransactionsByCategory = (transactions: Transaction[], type: "expense" | "income") => {
@@ -388,10 +443,13 @@ export function Dashboard() {
           <div className="w-full">
             <ExpenseOverTime
               data={timeData}
+              transactions={filteredTransactions}
               title={`Évolution des ${hasExpenseData ? 'Dépenses' : ''} ${hasExpenseData && hasIncomeData ? 'et' : ''} ${hasIncomeData ? 'Revenus' : ''} ${filters.category !== 'all' ? `- ${CATEGORY_NAMES[filters.category]}` : ''}`}
               granularity={granularity}
               showIncome={hasIncomeData}
               showExpenses={hasExpenseData}
+              selectedCategory={filters.category}
+              categoryGranularity={categoryGranularity}
             />
           </div>
         )}
