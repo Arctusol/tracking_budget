@@ -37,9 +37,12 @@ export function AuthForm() {
         await signUp(email, password, fullName);
         toast({
           title: "Compte créé",
-          description: "Veuillez vérifier votre email pour confirmer votre compte.",
+          description: "Votre compte a été créé avec succès.",
         });
-        navigate("/");
+        // On attend un peu avant la redirection pour que le toast soit visible
+        setTimeout(() => {
+          navigate("/");
+        }, 1500);
       } else {
         await signIn(email, password);
         navigate("/");

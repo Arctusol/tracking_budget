@@ -1,12 +1,12 @@
 import { createContext, useContext, useEffect, useState } from "react";
-import { User } from "@supabase/supabase-js";
+import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
 
 type AuthContextType = {
   user: User | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, fullName: string) => Promise<void>;
+  signUp: (email: string, password: string, fullName: string) => Promise<{ user: User | null; session: Session | null; }>;
   signOut: () => Promise<void>;
 };
 
@@ -47,18 +47,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     if (error) throw error;
 
-    // Create profile
+    // Vérifier d'abord si le profil existe
     if (data.user) {
-      const { error: profileError } = await supabase.from("profiles").insert([
-        {
-          id: data.user.id,
-          email: data.user.email,
-          full_name: fullName,
-        },
-      ]);
+      const { data: existingProfile } = await supabase
+        .from("profiles")
+        .select()
+        .eq("id", data.user.id)
+        .single();
 
-      if (profileError) throw profileError;
+      // Créer le profil uniquement s'il n'existe pas déjà
+      if (!existingProfile) {
+        const { error: profileError } = await supabase.from("profiles").insert([
+          {
+            id: data.user.id,
+            email: data.user.email,
+            full_name: fullName,
+          },
+        ]);
+
+        if (profileError && profileError.code !== "23505") {
+          // On ignore l'erreur de doublon mais on lance les autres erreurs
+          throw profileError;
+        }
+      }
     }
+
+    return data;
   };
 
   const signIn = async (email: string, password: string) => {
