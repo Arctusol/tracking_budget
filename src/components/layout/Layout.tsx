@@ -1,5 +1,6 @@
 import { Navbar } from "./Navbar";
 import { Navigation } from "./Navigation";
+import { Analytics } from '@vercel/analytics/next';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -18,6 +19,7 @@ export function Layout({ children }: LayoutProps) {
         <div className="lg:pl-64 flex flex-col flex-1">
           <main className="flex-1">
             {children}
+            <Analytics />
           </main>
         </div>
       </div>
