@@ -336,6 +336,7 @@ export function Dashboard() {
   // Ajout de ces vérifications avant le return
   const hasIncomeData = Object.keys(incomesByCategory).length > 0;
   const hasExpenseData = Object.keys(expensesByCategory).length > 0;
+  const hasTimeData = timeData.length > 0;
 
   return (
     <div className="w-full p-6">
@@ -360,43 +361,41 @@ export function Dashboard() {
 
         <div className="grid grid-cols-1 md:grid-cols-[repeat(auto-fit,minmax(400px,1fr))] gap-4 mb-4">
           {hasExpenseData && (
-            <ExpenseByCategory
-              data={categoryData}
-              title="Dépenses par catégorie"
-              onChartClick={handleChartClick}
-            />
+            <>
+              <ExpenseByCategory
+                data={categoryData}
+                title={`Dépenses par catégorie ${filters.category !== 'all' ? `- ${CATEGORY_NAMES[filters.category]}` : ''}`}
+                onChartClick={handleChartClick}
+              />
+              <TopExpenses 
+                data={topExpenses} 
+                title={`Top 5 des Dépenses ${filters.category !== 'all' ? `- ${CATEGORY_NAMES[filters.category]}` : ''}`}
+                onItemClick={handleChartClick}
+              />
+            </>
           )}
           {hasIncomeData && (
             <IncomeByCategory
               data={incomeData}
-              title="Revenus par catégorie"
+              title={`Revenus par catégorie ${filters.category !== 'all' ? `- ${CATEGORY_NAMES[filters.category]}` : ''}`}
               onChartClick={handleChartClick}
             />
           )}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-[repeat(auto-fit,minmax(400px,1fr))] gap-4">
-          <ExpenseOverTime
-            data={timeData}
-            title="Évolution des Dépenses et Revenus"
-            granularity={granularity}
-            showIncome={hasIncomeData}
-          />
-          {hasExpenseData && (
-            <TopExpenses 
-              data={topExpenses} 
-              title="Top 5 des Dépenses"
-              onItemClick={handleChartClick}
+        {hasTimeData && (
+          <div className="w-full">
+            <ExpenseOverTime
+              data={timeData}
+              title={`Évolution des ${hasExpenseData ? 'Dépenses' : ''} ${hasExpenseData && hasIncomeData ? 'et' : ''} ${hasIncomeData ? 'Revenus' : ''} ${filters.category !== 'all' ? `- ${CATEGORY_NAMES[filters.category]}` : ''}`}
+              granularity={granularity}
+              showIncome={hasIncomeData}
+              showExpenses={hasExpenseData}
             />
-          )}
-        </div>
+          </div>
+        )}
 
-        <div className="mt-4">
-          <ExpenseList 
-            transactions={displayedTransactions} 
-            members={profiles} 
-          />
-        </div>
+        <ExpenseList transactions={filteredTransactions} />
       </div>
     </div>
   );

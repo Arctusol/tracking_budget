@@ -11,18 +11,27 @@ import {
 } from "recharts";
 import { GranularityType } from "./ChartGranularity";
 
+interface TimeData {
+  date: string;
+  expenses: number;
+  income: number;
+}
+
 interface ExpenseOverTimeProps {
-  data: Array<{
-    date: string;
-    expenses: number;
-    income: number;
-  }>;
+  data: TimeData[];
   title: string;
   granularity: GranularityType;
   showIncome?: boolean;
+  showExpenses?: boolean;
 }
 
-export function ExpenseOverTime({ data, title, granularity, showIncome = true }: ExpenseOverTimeProps) {
+export function ExpenseOverTime({ 
+  data, 
+  title, 
+  granularity, 
+  showIncome = true,
+  showExpenses = true 
+}: ExpenseOverTimeProps) {
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
     switch (granularity) {
@@ -83,13 +92,15 @@ export function ExpenseOverTime({ data, title, granularity, showIncome = true }:
               labelFormatter={formatDate}
             />
             <Legend />
-            <Line
-              type="monotone"
-              dataKey="expenses"
-              stroke="#ef4444"
-              name="Dépenses"
-              strokeWidth={2}
-            />
+            {showExpenses && (
+              <Line
+                type="monotone"
+                dataKey="expenses"
+                stroke="#ef4444"
+                name="Dépenses"
+                strokeWidth={2}
+              />
+            )}
             {showIncome && (
               <Line
                 type="monotone"
