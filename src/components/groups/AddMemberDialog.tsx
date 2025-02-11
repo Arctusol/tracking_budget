@@ -87,7 +87,7 @@ export function AddMemberDialog({ groupId, open, onOpenChange, onMemberAdded }: 
             <Input
               placeholder="Rechercher par nom ou email..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => handleSearch(e.target.value)}
             />
           </div>
 
