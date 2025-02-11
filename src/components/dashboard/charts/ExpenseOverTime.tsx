@@ -53,13 +53,6 @@ export function ExpenseOverTime({
   }, [selectedCategory]);
 
   const prepareData = () => {
-    console.log('ExpenseOverTime prepareData:', {
-      selectedCategory,
-      dataPoints: data.length,
-      transactions: transactions.length,
-      visibleSubcategories,
-      sampleTransaction: transactions[0]
-    });
 
     if (!selectedCategory || selectedCategory === 'all') {
       return data;
@@ -70,12 +63,6 @@ export function ExpenseOverTime({
     const effectiveCategory = parentCategory || selectedCategory;
     const isSubcategorySelected = parentCategory !== null;
 
-    console.log('Category info:', {
-      selectedCategory,
-      parentCategory,
-      effectiveCategory,
-      isSubcategorySelected
-    });
 
     const enrichedData = data.map(point => {
       const pointDate = point.date;
@@ -116,23 +103,11 @@ export function ExpenseOverTime({
         
         // Log a few transactions for debugging
         if (transactions.indexOf(t) < 3) {
-          console.log('Transaction date comparison:', {
-            pointDate,
-            transactionDate: t.date,
-            formattedTransactionDate,
-            granularity,
-            matches: formattedTransactionDate === pointDate
-          });
         }
         
         return formattedTransactionDate === pointDate && t.type === "expense";
       });
 
-      console.log(`Processing date ${pointDate}:`, {
-        totalTransactions: dateTransactions.length,
-        expenses: point.expenses,
-        sampleTransaction: dateTransactions[0]
-      });
 
       // 3. Calculate category total (includes subcategories)
       const categoryTransactions = dateTransactions.filter(t => {
@@ -149,13 +124,6 @@ export function ExpenseOverTime({
       const categoryTotal = categoryTransactions.reduce((sum, t) => sum + t.amount, 0);
       newPoint[`total_${effectiveCategory}`] = categoryTotal;
 
-      console.log(`Category total for ${effectiveCategory}:`, {
-        date: pointDate,
-        total: categoryTotal,
-        transactionCount: categoryTransactions.length,
-        isSubcategorySelected,
-        categoryTransactions: categoryTransactions.slice(0, 2) // Log first 2 transactions
-      });
 
       // 4. Calculate subcategory totals (only if main category is selected)
       if (!isSubcategorySelected) {
@@ -166,20 +134,13 @@ export function ExpenseOverTime({
           
           newPoint[subCat] = subCatTotal;
 
-          if (subCatTotal > 0 || subCatTransactions.length > 0) {
-            console.log(`Subcategory ${subCat} total:`, {
-              date: pointDate,
-              total: subCatTotal,
-              transactions: subCatTransactions.slice(0, 2) // Log first 2 transactions
-            });
-          }
+
         });
       }
       
       return newPoint;
     });
 
-    console.log('Enriched data sample:', enrichedData[0]);
     return enrichedData;
   };
 
@@ -332,6 +293,8 @@ export function ExpenseOverTime({
                 stroke={CATEGORY_COLORS[CATEGORY_NAMES[subCat]]}
                 name={getCategoryName(subCat)}
                 dot={false}
+                isAnimationActive={false}
+
               />
             ))}
           </LineChart>

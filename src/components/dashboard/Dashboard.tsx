@@ -194,11 +194,6 @@ export function Dashboard() {
   };
 
   const groupTransactionsByDate = (transactions: Transaction[]) => {
-    console.log('Grouping transactions by date:', {
-      transactionsCount: transactions.length,
-      granularity,
-      selectedCategory: filters.category
-    });
 
     const grouped = transactions.reduce((acc, transaction) => {
       let dateKey: string;
@@ -253,23 +248,12 @@ export function Dashboard() {
           
           // Update category total if transaction belongs to this category or its subcategories
           if (isMainCategory || isSubcategory) {
-            console.log('Adding to category total:', {
-              date: dateKey,
-              amount: transaction.amount,
-              category: filters.category,
-              transactionCategory: transaction.category_id
-            });
             const currentTotal = (acc[dateKey][`total_${filters.category}`] as number) || 0;
             acc[dateKey][`total_${filters.category}`] = currentTotal + transaction.amount;
           }
           
           // Update subcategory total if transaction belongs to a subcategory
           if (isSubcategory) {
-            console.log('Adding to subcategory:', {
-              date: dateKey,
-              amount: transaction.amount,
-              subcategory: transaction.category_id
-            });
             const currentSubTotal = (acc[dateKey][transaction.category_id] as number) || 0;
             acc[dateKey][transaction.category_id] = currentSubTotal + transaction.amount;
           }
@@ -282,7 +266,6 @@ export function Dashboard() {
     }, {} as Record<string, TimeDataPoint>);
 
     const result = Object.values(grouped).sort((a, b) => a.date.localeCompare(b.date));
-    console.log('Grouped data result:', result);
     return result;
   };
 
