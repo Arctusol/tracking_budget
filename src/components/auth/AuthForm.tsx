@@ -21,25 +21,49 @@ export function AuthForm() {
     e.preventDefault();
     setLoading(true);
 
+    // Validation du mot de passe
+    if (password.length < 6) {
+      toast({
+        variant: "destructive",
+        title: "Erreur",
+        description: "Le mot de passe doit contenir au moins 6 caractères",
+      });
+      setLoading(false);
+      return;
+    }
+
     try {
       if (isSignUp) {
         await signUp(email, password, fullName);
         toast({
-          title: "Account created",
-          description: "Please check your email to verify your account.",
+          title: "Compte créé",
+          description: "Veuillez vérifier votre email pour confirmer votre compte.",
         });
-        // Redirection vers la page d'accueil après inscription réussie
         navigate("/");
       } else {
         await signIn(email, password);
-        // Redirection vers la page d'accueil après connexion réussie
         navigate("/");
       }
     } catch (error) {
+      // Gestion personnalisée des erreurs
+      let errorMessage = "Une erreur inattendue s'est produite";
+      
+      if (error.message.includes("Email not confirmed")) {
+        errorMessage = "Veuillez confirmer votre email avant de vous connecter";
+      } else if (error.message.includes("Invalid login credentials")) {
+        errorMessage = "Email ou mot de passe incorrect";
+      } else if (error.message.includes("Email already registered")) {
+        errorMessage = "Cet email est déjà utilisé";
+      } else if (error.message.includes("Password should be at least 6 characters")) {
+        errorMessage = "Le mot de passe doit contenir au moins 6 caractères";
+      } else if (error.message.includes("Invalid email")) {
+        errorMessage = "Veuillez entrer une adresse email valide";
+      }
+
       toast({
         variant: "destructive",
-        title: "Error",
-        description: error.message,
+        title: "Erreur",
+        description: errorMessage,
       });
     } finally {
       setLoading(false);
