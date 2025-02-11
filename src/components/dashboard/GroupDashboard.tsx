@@ -106,7 +106,15 @@ export function GroupDashboard() {
       // Charger les transactions du groupe
       const { data: transactionsData, error: transactionsError } = await supabase
         .from('transactions')
-        .select('*')
+        .select(`
+          *,
+          transaction_shares(
+            user_id,
+            split_type,
+            percentage,
+            amount
+          )
+        `)
         .eq('group_id', groupId)
         .order('date', { ascending: false });
 

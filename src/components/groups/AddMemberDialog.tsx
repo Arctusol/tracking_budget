@@ -5,7 +5,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/lib/supabase';
-import { addGroupMember } from '@/lib/groups';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
@@ -42,9 +41,10 @@ export function AddMemberDialog({ groupId, open, onOpenChange, onMemberAdded }: 
       const { data, error } = await supabase
         .from('profiles')
         .select('id, full_name, email, avatar_url')
-        .or(`full_name.ilike.%${value}%,email.ilike.%${value}%`)
+        .or(`full_name.ilike.%${value.toLowerCase()}%,email.ilike.%${value.toLowerCase()}%`)
         .limit(5);
 
+      console.log('Résultats de la recherche:', { data, error });
       if (error) throw error;
       setSearchResults(data || []);
     } catch (error) {
@@ -56,23 +56,23 @@ export function AddMemberDialog({ groupId, open, onOpenChange, onMemberAdded }: 
     if (!selectedUser || !groupId) return;
 
     setLoading(true);
-    const { error } = await addGroupMember(groupId, selectedUser.id, role);
-
-    if (error) {
-      toast({
-        title: "Erreur",
-        description: "Impossible d'ajouter le membre au groupe",
-        variant: "destructive",
-      });
-    } else {
+    try {
+      await addGroupMember(groupId, selectedUser.id, role);
       toast({
         title: "Succès",
         description: "Membre ajouté au groupe avec succès",
       });
       onMemberAdded();
       onOpenChange(false);
+    } catch (error) {
+      toast({
+        title: "Erreur",
+        description: "Impossible d'ajouter le membre au groupe",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
@@ -149,4 +149,42 @@ export function AddMemberDialog({ groupId, open, onOpenChange, onMemberAdded }: 
       </DialogContent>
     </Dialog>
   );
+}
+
+async function addGroupMember(groupId: string, userId: string, role: 'admin' | 'member' = 'member') {
+  const { data: member, error: memberError } = await supabase
+    .from('group_members')
+    .insert([{ group_id: groupId, user_id: userId, role }])
+    .select()
+    .single();
+
+  if (memberError) throw memberError;
+
+  // Récupérer toutes les transactions du groupe
+  const { data: groupTransactions, error: transactionsError } = await supabase
+    .from('transactions')
+    .select('id')
+    .eq('group_id', groupId);
+
+  if (transactionsError) throw transactionsError;
+
+  // Créer les partages pour toutes les transactions existantes
+  if (groupTransactions && groupTransactions.length > 0) {
+    const shares = groupTransactions.map(transaction => ({
+      transaction_id: transaction.id,
+      user_id: userId,
+      group_id: groupId,
+      split_type: 'equal',
+      percentage: null,
+      amount: null
+    }));
+
+    const { error: sharesError } = await supabase
+      .from('transaction_shares')
+      .insert(shares);
+
+    if (sharesError) throw sharesError;
+  }
+
+  return member;
 } 

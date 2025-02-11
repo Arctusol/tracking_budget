@@ -70,6 +70,7 @@ export function Dashboard() {
         await supabase
           .from("transactions")
           .select("*")
+          .eq("created_by", user.id)
           .order("date", { ascending: false });
 
       if (transactionsError) {
