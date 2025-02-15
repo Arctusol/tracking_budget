@@ -200,7 +200,11 @@ export default function ImportContainer({ onClose }: ImportContainerProps) {
           isUploading={isProcessing}
           uploadProgress={progress}
           error={error}
-          acceptedFileTypes={[".pdf", ".csv"]}
+          accept={{
+            "text/csv": [".csv"],
+            "application/pdf": [".pdf"]
+          }}
+          maxFiles={1}
         />
       ) : (
         <ProcessingPreview
