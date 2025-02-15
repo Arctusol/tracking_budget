@@ -10,6 +10,8 @@ import AuthPage from "./pages/auth";
 import ImportPage from "./pages/import";
 import GroupsPage from "./pages/groups";
 import TransactionsPage from "./pages/transactions";
+import ReceiptsPage from "./pages/receipts";
+import ReceiptsDashboardPage from "./pages/receipts-dashboard";
 import routes from "tempo-routes";
 
 function App() {
@@ -25,10 +27,13 @@ function App() {
                 <Layout>
                   <Routes>
                     <Route path="/" element={<Dashboard />} />
+                    <Route path="/receipts-dashboard" element={<ReceiptsDashboardPage />} />
                     <Route path="/transactions" element={<TransactionsPage />} />
                     <Route path="/groups" element={<GroupsPage />} />
                     <Route path="/groups/:groupId" element={<GroupDashboard />} />
                     <Route path="/import" element={<ImportPage />} />
+                    <Route path="/receipts" element={<ReceiptsPage />} />
+                    <Route path="/receipts-dashboard" element={<ReceiptsDashboardPage />} />
                     <Route path="*" element={<Navigate to="/" />} />
                   </Routes>
                   {import.meta.env.VITE_TEMPO === "true" && useRoutes(routes)}

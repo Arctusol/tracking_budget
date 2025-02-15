@@ -7,6 +7,8 @@ const navigation = [
   { name: "Transactions", href: "/transactions", icon: Receipt },
   { name: "Groupes", href: "/groups", icon: Users },
   { name: "Import", href: "/import", icon: Upload },
+  { name: "Import tickets de caisse", href: "/receipts", icon: Receipt },
+  { name: "Analyse des tickets de caisse", href: "/receipts-dashboard", icon: Receipt },
 ];
 
 export function Navigation() {

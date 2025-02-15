@@ -11,10 +11,19 @@ export async function processCSV(file: File): Promise<ProcessedTransaction[]> {
       header: true,
       skipEmptyLines: true,
       complete: (results) => {
+        console.log("CSV parsing results:", results);
+        console.log("CSV headers:", results.meta.fields);
+        
+        if (!results.data || results.data.length === 0) {
+          reject(new Error("Le fichier CSV est vide ou mal formaté"));
+          return;
+        }
+
         const transactions = results.data
           .map((row: any) => {
+            console.log("Processing row:", row);
             const amount = parseFloat((row.amount || row.Amount || row.montant || row.Montant || "0").replace(',', '.'));
-            return {
+            const transaction = {
               id: uuidv4(),
               date: row.date || row.Date || row.date_operation || row.DateOperation || "",
               description: row.description || row.Description || row.libelle || row.Libelle || "",
@@ -23,21 +32,35 @@ export async function processCSV(file: File): Promise<ProcessedTransaction[]> {
               merchant: "",
               category_id: row.category || row.Category || undefined,
             };
+            console.log("Mapped transaction:", transaction);
+            return transaction;
           })
-          .filter((t) => Boolean(t.date && t.amount));
+          .filter((t) => {
+            const isValid = Boolean(t.date && t.amount);
+            if (!isValid) {
+              console.log("Invalid transaction:", t, "Missing date or amount");
+            }
+            return isValid;
+          });
+
+        console.log("Filtered transactions:", transactions);
 
         const validationResult = validateTransactions(transactions);
+        console.log("Validation result:", validationResult);
+        
         if (validationResult.errors.length > 0) {
           validationErrors = validationResult.errors;
+          console.log("Validation errors:", validationErrors);
         }
         if (validationResult.valid.length === 0) {
-          reject(new Error("No valid transactions found in the file"));
+          reject(new Error("Aucune transaction valide trouvée dans le fichier. Vérifiez que votre fichier contient les colonnes requises (date et montant) avec des données valides."));
           return;
         }
         resolve(validationResult.valid as ProcessedTransaction[]);
       },
       error: (error) => {
-        reject(new Error("Erreur lors de la lecture du fichier CSV"));
+        console.error("CSV parsing error:", error);
+        reject(new Error(`Erreur lors de la lecture du fichier CSV: ${error.message}`));
       },
     });
   });

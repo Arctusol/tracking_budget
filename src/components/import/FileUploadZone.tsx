@@ -12,8 +12,9 @@ import { Progress } from "@/components/ui/progress";
 
 interface FileUploadZoneProps {
   onFileSelect?: (files: File[]) => void;
-  acceptedFileTypes?: string[];
-  maxFileSize?: number;
+  accept?: { [key: string]: string[] };
+  maxFiles?: number;
+  children?: React.ReactNode;
   isUploading?: boolean;
   uploadProgress?: number;
   error?: string;
@@ -21,8 +22,9 @@ interface FileUploadZoneProps {
 
 const FileUploadZone = ({
   onFileSelect = () => {},
-  acceptedFileTypes = [".pdf", ".csv", ".jpg", ".png", ".jpeg"],
-  maxFileSize = 10 * 1024 * 1024, // 10MB
+  accept = { "image/*": [".jpg", ".png", ".jpeg"], "text/csv": [".csv"] },
+  maxFiles = 10,
+  children,
   isUploading = false,
   uploadProgress = 0,
   error = "",
@@ -53,10 +55,11 @@ const FileUploadZone = ({
 
   const handleFiles = (files: File[]) => {
     const validFiles = files.filter((file) => {
-      const isValidType = acceptedFileTypes.some((type) =>
+      const fileTypes = Object.values(accept).flat();
+      const isValidType = fileTypes.some((type) =>
         file.name.toLowerCase().endsWith(type),
       );
-      const isValidSize = file.size <= maxFileSize;
+      const isValidSize = file.size <= 10 * 1024 * 1024;
       return isValidType && isValidSize;
     });
 
@@ -80,7 +83,7 @@ const FileUploadZone = ({
         <input
           type="file"
           multiple
-          accept={acceptedFileTypes.join(",")}
+          accept={Object.keys(accept).join(",")}
           onChange={handleFileInput}
           className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
         />
@@ -99,11 +102,17 @@ const FileUploadZone = ({
               <TooltipTrigger asChild>
                 <div className="flex items-center gap-2 text-sm text-gray-500">
                   <FileType className="w-4 h-4" />
-                  <span>Accepted formats: {acceptedFileTypes.join(", ")}</span>
+                  <span>
+                    Accepted formats:{" "}
+                    {Object.values(accept)
+                      .flat()
+                      .map((type) => type.replace(/^\./, ""))
+                      .join(", ")}
+                  </span>
                 </div>
               </TooltipTrigger>
               <TooltipContent>
-                <p>Maximum file size: {maxFileSize / (1024 * 1024)}MB</p>
+                <p>Maximum file size: 10MB</p>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
@@ -125,6 +134,7 @@ const FileUploadZone = ({
           <span className="text-sm">{error}</span>
         </div>
       )}
+      {children}
     </Card>
   );
 };
