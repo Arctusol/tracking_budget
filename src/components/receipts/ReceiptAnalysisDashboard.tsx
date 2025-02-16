@@ -15,7 +15,6 @@ import {
   YAxis,
   CartesianGrid,
 } from "recharts";
-import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { getReceiptsByUser, type ReceiptData } from "@/lib/services/receipt.service";
 import {

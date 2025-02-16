@@ -8,6 +8,8 @@ export async function processFile(file: File): Promise<ProcessedTransaction[]> {
   const fileName = file.name.toLowerCase();
 
   try {
+    console.log("Processing file:", file.name, "type:", file.type);
+    
     if (fileType === "text/csv" || fileName.endsWith(".csv")) {
       return await processCSV(file);
     } else if (fileType === "application/pdf" || fileName.endsWith(".pdf")) {

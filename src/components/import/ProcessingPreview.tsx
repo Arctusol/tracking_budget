@@ -39,8 +39,8 @@ const ProcessingPreview = ({
 }: ProcessingPreviewProps) => {
   // Extraire les métadonnées du premier relevé
   const statementInfo = transactions[0]?.metadata;
-  const totalDebits = transactions.reduce((sum, t) => t.amount < 0 ? sum + Math.abs(t.amount) : sum, 0);
-  const totalCredits = transactions.reduce((sum, t) => t.amount > 0 ? sum + t.amount : sum, 0);
+  const totalDebits = transactions.reduce((sum, t) => t.type === 'expense' ? sum + t.amount : sum, 0);
+  const totalCredits = transactions.reduce((sum, t) => t.type === 'income' ? sum + t.amount : sum, 0);
   const netBalance = totalCredits - totalDebits;
 
   console.log("ProcessingPreview - transactions:", transactions);

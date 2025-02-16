@@ -15,6 +15,9 @@ import { Transaction as TransactionType } from "@/types/transaction";
 import { useCategoryGranularity } from "@/hooks/useCategoryGranularity";
 import { usePersistedFilters } from "@/hooks/usePersistedFilters";
 import { usePageVisibility } from "@/hooks/usePageVisibility";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { PieChartIcon, BarChart, Calendar } from "lucide-react";
+import { BudgetPlanner } from "./budgeting/BudgetPlanner";
 
 interface Transaction extends TransactionType {
   shared_with?: string[];
@@ -389,55 +392,120 @@ export function Dashboard() {
 
         <StatsCards stats={statsDisplay} />
 
-        <div className="flex justify-end gap-4 mb-4">
-          <CategoryGranularity 
-            value={categoryGranularity} 
-            onChange={handleCategoryGranularityChange}
-            selectedFilter={filters.category}
-          />
-          <ChartGranularity value={granularity} onChange={setGranularity} />
-        </div>
+        <Tabs defaultValue="overview" className="w-full">
+          <TabsList>
+            <TabsTrigger value="overview">
+              <PieChartIcon className="h-4 w-4 mr-2" />
+              Overview
+            </TabsTrigger>
+            <TabsTrigger value="category-analysis">
+              <BarChart className="h-4 w-4 mr-2" />
+              Category Analysis
+            </TabsTrigger>
+            <TabsTrigger value="budget-planning">
+              <Calendar className="h-4 w-4 mr-2" />
+              Budget Planning
+            </TabsTrigger>
+          </TabsList>
 
-        <div className="grid grid-cols-1 md:grid-cols-[repeat(auto-fit,minmax(300px,1fr))] gap-4 mb-4">
-          {hasExpenseData && (
-            <>
-              <ExpenseByCategory
-                data={categoryData}
-                title={`Dépenses par catégorie ${filters.category !== 'all' ? `- ${CATEGORY_NAMES[filters.category]}` : ''}`}
-                onChartClick={handleChartClick}
+          <TabsContent value="overview">
+            <div className="flex justify-end gap-4 mb-4">
+              <CategoryGranularity 
+                value={categoryGranularity} 
+                onChange={handleCategoryGranularityChange}
+                selectedFilter={filters.category}
               />
-              <TopExpenses 
-                data={topExpenses} 
-                title={`Top 5 des dépenses ${filters.category !== 'all' ? `- ${CATEGORY_NAMES[filters.category]}` : ''}`}
-                onItemClick={handleChartClick}
-              />
-            </>
-          )}
-          {hasIncomeData && (
-            <IncomeByCategory
-              data={incomeData}
-              title={`Revenus par catégorie ${filters.category !== 'all' ? `- ${CATEGORY_NAMES[filters.category]}` : ''}`}
-              onChartClick={handleChartClick}
-            />
-          )}
-        </div>
+              <ChartGranularity value={granularity} onChange={setGranularity} />
+            </div>
 
-        {hasTimeData && (
-          <div className="w-full">
-            <ExpenseOverTime
-              data={timeData}
-              transactions={filteredTransactions}
-              title={`Évolution des ${hasExpenseData ? 'dépenses' : ''} ${hasExpenseData && hasIncomeData ? 'et' : ''} ${hasIncomeData ? 'revenus' : ''} ${filters.category !== 'all' ? `- ${CATEGORY_NAMES[filters.category]}` : ''}`}
-              granularity={granularity}
-              showIncome={hasIncomeData}
-              showExpenses={hasExpenseData}
-              selectedCategory={filters.category}
-              categoryGranularity={categoryGranularity}
-            />
-          </div>
-        )}
+            <div className="grid grid-cols-1 md:grid-cols-[repeat(auto-fit,minmax(300px,1fr))] gap-4 mb-4">
+              {hasExpenseData && (
+                <>
+                  <ExpenseByCategory
+                    data={categoryData}
+                    title={`Dépenses par catégorie ${filters.category !== 'all' ? `- ${CATEGORY_NAMES[filters.category]}` : ''}`}
+                    onChartClick={handleChartClick}
+                  />
+                  <TopExpenses 
+                    data={topExpenses} 
+                    title={`Top 5 des dépenses ${filters.category !== 'all' ? `- ${CATEGORY_NAMES[filters.category]}` : ''}`}
+                    onItemClick={handleChartClick}
+                  />
+                </>
+              )}
+              {hasIncomeData && (
+                <IncomeByCategory
+                  data={incomeData}
+                  title={`Revenus par catégorie ${filters.category !== 'all' ? `- ${CATEGORY_NAMES[filters.category]}` : ''}`}
+                  onChartClick={handleChartClick}
+                />
+              )}
+            </div>
 
-        <ExpenseList transactions={filteredTransactions} />
+            {hasTimeData && (
+              <div className="w-full">
+                <ExpenseOverTime
+                  data={timeData}
+                  transactions={filteredTransactions}
+                  title={`Évolution des ${hasExpenseData ? 'dépenses' : ''} ${hasExpenseData && hasIncomeData ? 'et' : ''} ${hasIncomeData ? 'revenus' : ''} ${filters.category !== 'all' ? `- ${CATEGORY_NAMES[filters.category]}` : ''}`}
+                  granularity={granularity}
+                  showIncome={hasIncomeData}
+                  showExpenses={hasExpenseData}
+                  selectedCategory={filters.category}
+                  categoryGranularity={categoryGranularity}
+                />
+              </div>
+            )}
+
+            <ExpenseList transactions={filteredTransactions} />
+          </TabsContent>
+
+          <TabsContent value="category-analysis">
+            <div className="grid gap-6">
+              {Object.entries(CATEGORY_HIERARCHY).map(([mainCategory, subCategories]) => {
+                const categoryTransactions = filteredTransactions.filter(t => 
+                  [mainCategory, ...subCategories].includes(t.category_id)
+                );
+                const categoryTimeData = timeData.filter(t => 
+                  [mainCategory, ...subCategories].includes(t.category as string)
+                );
+                
+                return (
+                  <div key={mainCategory} className="p-4 rounded-lg border">
+                    <h3 className="text-lg font-semibold mb-4">{CATEGORY_NAMES[mainCategory as keyof typeof CATEGORY_NAMES]}</h3>
+                    <ExpenseOverTime
+                      data={categoryTimeData}
+                      transactions={categoryTransactions}
+                      title={CATEGORY_NAMES[mainCategory as keyof typeof CATEGORY_NAMES]}
+                      granularity={granularity}
+                      showIncome={false}
+                      showExpenses={true}
+                      selectedCategory={mainCategory}
+                      categoryGranularity={categoryGranularity}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="budget-planning">
+            <BudgetPlanner 
+              transactions={filteredTransactions.filter(t => {
+                // Exclure les transactions de type non-expense
+                if (t.type !== 'expense') return false;
+                
+                // Obtenir la catégorie parente
+                const parentCategory = getParentCategory(t.category_id);
+                const categoryId = parentCategory || t.category_id;
+                
+                // Exclure les transactions des catégories Virements et Revenus
+                return categoryId !== CATEGORY_IDS.INCOME && 
+                       categoryId !== CATEGORY_IDS.TRANSFERS;
+              })} 
+            />
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );

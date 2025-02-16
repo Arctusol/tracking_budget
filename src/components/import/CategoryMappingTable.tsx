@@ -151,8 +151,8 @@ const CategoryMappingTable = ({
                     {transaction.description}
                   </TableCell>
                   <TableCell className="text-right whitespace-nowrap">
-                    <span className={transaction.amount < 0 ? "text-red-600" : "text-green-600"}>
-                      {transaction.amount.toLocaleString("fr-FR", {
+                    <span className={transaction.type === 'expense' ? "text-red-600" : "text-green-600"}>
+                      {(transaction.type === 'expense' ? '-' : '') + transaction.amount.toLocaleString("fr-FR", {
                         style: "currency",
                         currency: "EUR",
                       })}

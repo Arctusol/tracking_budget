@@ -4,13 +4,22 @@ import { Transaction, TransactionCategory, TransactionFilters } from "@/types/tr
 
 // Fonction pour convertir une date du format FR vers ISO
 function convertToISODate(dateStr: string): string {
+  // Si la date est déjà au format ISO (YYYY-MM-DD), la retourner telle quelle
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    return dateStr;
+  }
+
   // Gérer les formats possibles (DD/MM/YYYY ou DD-MM-YYYY)
   const parts = dateStr.split(/[/-]/);
   if (parts.length !== 3) {
     throw new Error(`Invalid date format: ${dateStr}`);
   }
+  
+  // Assurez-vous que l'année est sur 4 chiffres
+  const year = parts[2].length === 2 ? '20' + parts[2] : parts[2];
+  
   // Réorganiser en YYYY-MM-DD
-  return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+  return `${year}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
 }
 
 export async function storeTransactions(
