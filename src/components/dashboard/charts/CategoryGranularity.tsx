@@ -15,7 +15,7 @@ export function CategoryGranularity({ value, onChange, selectedFilter }: Categor
   const getDisplayValue = (currentValue: string) => {
     if (currentValue === "main") return "Catégories principales uniquement";
     if (currentValue === "all") return "Afficher toutes les sous-catégories";
-    return `${CATEGORY_NAMES[currentValue]} (toutes les sous-catégories + catégorie ${CATEGORY_NAMES[currentValue]})`;
+    return `${CATEGORY_NAMES[currentValue]} (avec toutes les sous-catégories)`;
   };
 
   const buildCategoryOptions = () => {
@@ -32,7 +32,7 @@ export function CategoryGranularity({ value, onChange, selectedFilter }: Categor
       
       items.push(
         <SelectItem key={selectedFilter} value={selectedFilter} className="font-semibold">
-          {mainCategoryName} (toutes les sous-catégories + catégorie {mainCategoryName})
+          {mainCategoryName} (avec toutes les sous-catégories)
         </SelectItem>
       );
 

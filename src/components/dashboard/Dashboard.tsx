@@ -1,23 +1,20 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
-import { StatsCards } from "./stats/StatsCards";
-import { ExpenseByCategory } from "./charts/ExpenseByCategory";
-import { IncomeByCategory } from "./charts/IncomeByCategory";
-import { ExpenseOverTime } from "./charts/ExpenseOverTime";
-import { TopExpenses } from "./charts/TopExpenses";
 import { ExpenseList } from "./ExpenseList";
-import { getCategoryName, getParentCategory, CATEGORY_HIERARCHY, CATEGORY_IDS, CATEGORY_NAMES, CATEGORY_COLORS } from "@/lib/fileProcessing/constants";
+import { getCategoryName, getParentCategory, CATEGORY_HIERARCHY, CATEGORY_IDS, CATEGORY_NAMES } from "@/lib/fileProcessing/constants";
 import { DashboardFilters, FilterOptions } from "./DashboardFilters";
-import { ChartGranularity, GranularityType } from "./charts/ChartGranularity";
-import { CategoryGranularity, CategoryGranularityType } from "./charts/CategoryGranularity";
+import { GranularityType } from "./charts/ChartGranularity";
+import { CategoryGranularityType } from './charts/CategoryGranularity';
 import { Transaction as TransactionType } from "@/types/transaction";
+import { DashboardStats } from "@/types/stats";
 import { useCategoryGranularity } from "@/hooks/useCategoryGranularity";
 import { usePersistedFilters } from "@/hooks/usePersistedFilters";
 import { usePageVisibility } from "@/hooks/usePageVisibility";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { PieChartIcon, BarChart, Calendar } from "lucide-react";
 import { BudgetPlanner } from "./budgeting/BudgetPlanner";
+import { Overview } from "./tabs/Overview";
 
 interface Transaction extends TransactionType {
   shared_with?: string[];
@@ -31,30 +28,14 @@ interface Profile {
   avatar_url?: string;
 }
 
-type Trend = "up" | "down" | "neutral";
-
-interface Stat {
-  name: string;
-  value: string;
-  trend: Trend;
-}
-
-interface TimeDataPoint {
-  date: string;
-  expenses: number;
-  income: number;
-  [key: string]: number | string;
-}
-
 export function Dashboard() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [filteredTransactions, setFilteredTransactions] = useState<Transaction[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [selectedMainCategory, setSelectedMainCategory] = useState<string | null>(null);
   const [granularity, setGranularity] = useState<GranularityType>("month");
   const [displayedTransactions, setDisplayedTransactions] = useState<Transaction[]>([]);
-  const [stats, setStats] = useState({
+  const [stats, setStats] = useState<DashboardStats>({
     balance: 0,
     monthlyExpenses: 0,
     transfersAmandine: 0,
@@ -196,82 +177,6 @@ export function Dashboard() {
     setSelectedCategory(categoryId || null);
   };
 
-  const groupTransactionsByDate = (transactions: Transaction[]) => {
-
-    const grouped = transactions.reduce((acc, transaction) => {
-      let dateKey: string;
-      const date = new Date(transaction.date);
-      
-      switch (granularity) {
-        case "day":
-          dateKey = date.toISOString().split('T')[0];
-          break;
-        case "week":
-          const startOfWeek = new Date(date);
-          startOfWeek.setDate(date.getDate() - date.getDay());
-          dateKey = startOfWeek.toISOString().split('T')[0];
-          break;
-        case "month":
-          dateKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-          break;
-        case "year":
-          dateKey = `${date.getFullYear()}`;
-          break;
-      }
-
-      // Initialize the data point if it doesn't exist
-      if (!acc[dateKey]) {
-        acc[dateKey] = {
-          date: dateKey,
-          expenses: 0,
-          income: 0
-        } as TimeDataPoint;
-
-        // Initialize category totals if a category is selected
-        if (filters.category !== 'all') {
-          // Initialize main category total
-          acc[dateKey][`total_${filters.category}`] = 0;
-          
-          // Initialize all subcategory totals
-          const subcategories = CATEGORY_HIERARCHY[filters.category] || [];
-          subcategories.forEach(subCat => {
-            acc[dateKey][subCat] = 0;
-          });
-        }
-      }
-
-      // Update totals based on transaction type
-      if (transaction.type === "expense") {
-        // Update global expenses
-        acc[dateKey].expenses += transaction.amount;
-        
-        if (filters.category !== 'all') {
-          const isMainCategory = transaction.category_id === filters.category;
-          const isSubcategory = CATEGORY_HIERARCHY[filters.category]?.includes(transaction.category_id);
-          
-          // Update category total if transaction belongs to this category or its subcategories
-          if (isMainCategory || isSubcategory) {
-            const currentTotal = (acc[dateKey][`total_${filters.category}`] as number) || 0;
-            acc[dateKey][`total_${filters.category}`] = currentTotal + transaction.amount;
-          }
-          
-          // Update subcategory total if transaction belongs to a subcategory
-          if (isSubcategory) {
-            const currentSubTotal = (acc[dateKey][transaction.category_id] as number) || 0;
-            acc[dateKey][transaction.category_id] = currentSubTotal + transaction.amount;
-          }
-        }
-      } else {
-        acc[dateKey].income += transaction.amount;
-      }
-
-      return acc;
-    }, {} as Record<string, TimeDataPoint>);
-
-    const result = Object.values(grouped).sort((a, b) => a.date.localeCompare(b.date));
-    return result;
-  };
-
   const aggregateTransactionsByCategory = (transactions: Transaction[], type: "expense" | "income") => {
     const filtered = transactions.filter((t) => t.type === type);
     if (filtered.length === 0) return {};
@@ -300,213 +205,67 @@ export function Dashboard() {
     }, {} as Record<string, number>);
   };
 
-  const statsDisplay: Stat[] = [
-    {
-      name: "Solde Global",
-      value: stats.balance.toLocaleString("fr-FR", {
-        style: "currency",
-        currency: "EUR",
-      }),
-      trend: stats.balance >= 0 ? "up" : "down",
-    },
-    {
-      name: "Dépenses Totales",
-      value: stats.monthlyExpenses.toLocaleString("fr-FR", {
-        style: "currency",
-        currency: "EUR",
-      }),
-      trend: "down",
-    },
-    {
-      name: "Virements Amandine",
-      value: stats.transfersAmandine.toLocaleString("fr-FR", {
-        style: "currency",
-        currency: "EUR",
-      }),
-      trend: "neutral",
-    },
-    {
-      name: "Virements Antonin",
-      value: stats.transfersAntonin.toLocaleString("fr-FR", {
-        style: "currency",
-        currency: "EUR",
-      }),
-      trend: "neutral",
-    },
-  ];
-
   // Données pour le graphique des dépenses par catégorie
   const expensesByCategory = aggregateTransactionsByCategory(filteredTransactions, "expense");
 
   // Données pour le graphique des revenus par catégorie
   const incomesByCategory = aggregateTransactionsByCategory(filteredTransactions, "income");
 
-  const categoryData = Object.entries(expensesByCategory).map(
-    ([name, value]) => ({
-      name,
-      value,
-      color: CATEGORY_COLORS[name] || CATEGORY_COLORS['Autre'],
-    })
-  );
-
-  const incomeData = Object.entries(incomesByCategory).map(
-    ([name, value]) => ({
-      name,
-      value,
-      color: CATEGORY_COLORS[name] || CATEGORY_COLORS['Autre'],
-    })
-  );
-
-  // Données pour le graphique d'évolution dans le temps
-  const timeData = groupTransactionsByDate(filteredTransactions);
-
-  // Données pour les principales dépenses
-  const topExpenses = filteredTransactions
-    .filter((t) => t.type === "expense")
-    .sort((a, b) => b.amount - a.amount)
-    .slice(0, 5)
-    .map((t) => ({
-      name: t.description,
-      amount: t.amount,
-    }));
-
-  // Mise à jour du handler
-  const handleCategoryGranularityChange = (value: CategoryGranularityType) => {
-    handleGranularityChange(value, filters);
-  };
-
-  // Ajout de ces vérifications avant le return
-  const hasIncomeData = Object.keys(incomesByCategory).length > 0;
-  const hasExpenseData = Object.keys(expensesByCategory).length > 0;
-  const hasTimeData = timeData.length > 0;
 
   return (
-    <div className="w-full p-5">
-      <div className="max-w-[100%] mx-auto space-y-5">
-        <h1 className="text-3xl font-bold">Spend Wiser</h1>
+    <div className="container mx-auto p-4">
+      <DashboardFilters filters={filters} onFilterChange={handleFilterChange} />
 
-        <DashboardFilters 
-          filters={filters}
-          onFilterChange={handleFilterChange}
-        />
+      <Tabs defaultValue="overview" className="w-full">
+        <TabsList>
+          <TabsTrigger value="overview">
+            <PieChartIcon className="w-4 h-4 mr-2" />
+            Vue d'ensemble
+          </TabsTrigger>
+          <TabsTrigger value="transactions">
+            <BarChart className="w-4 h-4 mr-2" />
+            Transactions
+          </TabsTrigger>
+          <TabsTrigger value="budget">
+            <Calendar className="w-4 h-4 mr-2" />
+            Budget
+          </TabsTrigger>
+        </TabsList>
 
-        <StatsCards stats={statsDisplay} />
+        <TabsContent value="overview" className="mt-6">
+          <Overview
+            filteredTransactions={filteredTransactions}
+            expensesByCategory={expensesByCategory}
+            incomesByCategory={incomesByCategory}
+            categoryGranularity={categoryGranularity}
+            granularity={granularity}
+            handleGranularityChange={setGranularity}
+            handleChartClick={handleChartClick}
+            handleCategoryGranularityChange={(value: CategoryGranularityType) => handleGranularityChange(value, filters)}
+            filters={filters}
+            stats={stats}
+          />
+        </TabsContent>
 
-        <Tabs defaultValue="overview" className="w-full">
-          <TabsList>
-            <TabsTrigger value="overview">
-              <PieChartIcon className="h-4 w-4 mr-2" />
-              Overview
-            </TabsTrigger>
-            <TabsTrigger value="category-analysis">
-              <BarChart className="h-4 w-4 mr-2" />
-              Category Analysis
-            </TabsTrigger>
-            <TabsTrigger value="budget-planning">
-              <Calendar className="h-4 w-4 mr-2" />
-              Budget Planning
-            </TabsTrigger>
-          </TabsList>
+        <TabsContent value="transactions">
+          <ExpenseList
+            transactions={displayedTransactions}
+            members={profiles}
+          />
+        </TabsContent>
 
-          <TabsContent value="overview">
-            <div className="flex justify-end gap-4 mb-4">
-              <CategoryGranularity 
-                value={categoryGranularity} 
-                onChange={handleCategoryGranularityChange}
-                selectedFilter={filters.category}
-              />
-              <ChartGranularity value={granularity} onChange={setGranularity} />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-[repeat(auto-fit,minmax(300px,1fr))] gap-4 mb-4">
-              {hasExpenseData && (
-                <>
-                  <ExpenseByCategory
-                    data={categoryData}
-                    title={`Dépenses par catégorie ${filters.category !== 'all' ? `- ${CATEGORY_NAMES[filters.category]}` : ''}`}
-                    onChartClick={handleChartClick}
-                  />
-                  <TopExpenses 
-                    data={topExpenses} 
-                    title={`Top 5 des dépenses ${filters.category !== 'all' ? `- ${CATEGORY_NAMES[filters.category]}` : ''}`}
-                    onItemClick={handleChartClick}
-                  />
-                </>
-              )}
-              {hasIncomeData && (
-                <IncomeByCategory
-                  data={incomeData}
-                  title={`Revenus par catégorie ${filters.category !== 'all' ? `- ${CATEGORY_NAMES[filters.category]}` : ''}`}
-                  onChartClick={handleChartClick}
-                />
-              )}
-            </div>
-
-            {hasTimeData && (
-              <div className="w-full">
-                <ExpenseOverTime
-                  data={timeData}
-                  transactions={filteredTransactions}
-                  title={`Évolution des ${hasExpenseData ? 'dépenses' : ''} ${hasExpenseData && hasIncomeData ? 'et' : ''} ${hasIncomeData ? 'revenus' : ''} ${filters.category !== 'all' ? `- ${CATEGORY_NAMES[filters.category]}` : ''}`}
-                  granularity={granularity}
-                  showIncome={hasIncomeData}
-                  showExpenses={hasExpenseData}
-                  selectedCategory={filters.category}
-                  categoryGranularity={categoryGranularity}
-                />
-              </div>
-            )}
-
-            <ExpenseList transactions={filteredTransactions} />
-          </TabsContent>
-
-          <TabsContent value="category-analysis">
-            <div className="grid gap-6">
-              {Object.entries(CATEGORY_HIERARCHY).map(([mainCategory, subCategories]) => {
-                const categoryTransactions = filteredTransactions.filter(t => 
-                  [mainCategory, ...subCategories].includes(t.category_id)
-                );
-                const categoryTimeData = timeData.filter(t => 
-                  [mainCategory, ...subCategories].includes(t.category as string)
-                );
-                
-                return (
-                  <div key={mainCategory} className="p-4 rounded-lg border">
-                    <h3 className="text-lg font-semibold mb-4">{CATEGORY_NAMES[mainCategory as keyof typeof CATEGORY_NAMES]}</h3>
-                    <ExpenseOverTime
-                      data={categoryTimeData}
-                      transactions={categoryTransactions}
-                      title={CATEGORY_NAMES[mainCategory as keyof typeof CATEGORY_NAMES]}
-                      granularity={granularity}
-                      showIncome={false}
-                      showExpenses={true}
-                      selectedCategory={mainCategory}
-                      categoryGranularity={categoryGranularity}
-                    />
-                  </div>
-                );
-              })}
-            </div>
-          </TabsContent>
-
-          <TabsContent value="budget-planning">
-            <BudgetPlanner 
-              transactions={filteredTransactions.filter(t => {
-                // Exclure les transactions de type non-expense
-                if (t.type !== 'expense') return false;
-                
-                // Obtenir la catégorie parente
-                const parentCategory = getParentCategory(t.category_id);
-                const categoryId = parentCategory || t.category_id;
-                
-                // Exclure les transactions des catégories Virements et Revenus
-                return categoryId !== CATEGORY_IDS.INCOME && 
-                       categoryId !== CATEGORY_IDS.TRANSFERS;
-              })} 
-            />
-          </TabsContent>
-        </Tabs>
-      </div>
+        <TabsContent value="budget">
+          <BudgetPlanner
+            transactions={filteredTransactions.filter(t => {
+              if (t.type !== 'expense') return false;
+              const parentCategory = getParentCategory(t.category_id);
+              const categoryId = parentCategory || t.category_id;
+              return categoryId !== CATEGORY_IDS.INCOME && 
+                     categoryId !== CATEGORY_IDS.TRANSFERS;
+            })}
+          />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

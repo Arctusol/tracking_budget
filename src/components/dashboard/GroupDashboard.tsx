@@ -38,13 +38,6 @@ interface Stat {
   trend: Trend;
 }
 
-interface GroupStats {
-  balance: number;
-  monthlyIncome: number;
-  monthlyExpenses: number;
-  memberShares: Record<string, number>;
-}
-
 export function GroupDashboard() {
   const { groupId } = useParams();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
