@@ -1,19 +1,19 @@
 import { NavLink } from "react-router-dom";
-import { Home, Users, Upload, Receipt } from "lucide-react";
+import { Home, Users, Upload, Receipt, BarChart3, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navigation = [
-  { name: "Tableau de Bord", href: "/", icon: Home },
+  { name: "Tableau de Bord", href: "/", icon: BarChart3 },
   { name: "Transactions", href: "/transactions", icon: Receipt },
   { name: "Groupes", href: "/groups", icon: Users },
   { name: "Import", href: "/import", icon: Upload },
   { name: "Import tickets de caisse", href: "/receipts", icon: Receipt },
-  { name: "Analyse des tickets de caisse", href: "/receipts-dashboard", icon: Receipt },
+  { name: "Analyse des tickets de caisse", href: "/receipts-dashboard", icon: FileText },
 ];
 
-export function Navigation() {
+export function Navigation({ className }: { className?: string }) {
   return (
-    <nav className="flex flex-col space-y-1">
+    <nav className={cn("flex flex-col space-y-1", className)}>
       {navigation.map((item) => (
         <NavLink
           key={item.name}

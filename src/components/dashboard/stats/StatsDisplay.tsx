@@ -8,7 +8,7 @@ interface StatsDisplayProps {
 export function StatsDisplay({ stats }: StatsDisplayProps) {
   const statsDisplay: Stat[] = [
     {
-      name: "Solde Global",
+      name: "Solde actuel",
       value: stats.balance.toLocaleString("fr-FR", {
         style: "currency",
         currency: "EUR",
@@ -16,7 +16,7 @@ export function StatsDisplay({ stats }: StatsDisplayProps) {
       trend: stats.balance >= 0 ? "up" : "down",
     },
     {
-      name: "Dépenses Totales",
+      name: "Dépenses globales",
       value: stats.monthlyExpenses.toLocaleString("fr-FR", {
         style: "currency",
         currency: "EUR",
@@ -29,7 +29,7 @@ export function StatsDisplay({ stats }: StatsDisplayProps) {
         style: "currency",
         currency: "EUR",
       }),
-      trend: "neutral",
+      trend: "up",
     },
     {
       name: "Virements Antonin",
@@ -37,13 +37,17 @@ export function StatsDisplay({ stats }: StatsDisplayProps) {
         style: "currency",
         currency: "EUR",
       }),
-      trend: "neutral",
+      trend: "up",
+    },
+    {
+      name: "Revenus",
+      value: stats.incomes.toLocaleString("fr-FR", {
+        style: "currency",
+        currency: "EUR",
+      }),
+      trend: "up",
     },
   ];
 
-  return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-      <StatsCards stats={statsDisplay} />
-    </div>
-  );
+  return <StatsCards stats={statsDisplay} />;
 }

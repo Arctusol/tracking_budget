@@ -11,4 +11,5 @@ export interface DashboardStats {
   monthlyExpenses: number;
   transfersAmandine: number;
   transfersAntonin: number;
+  incomes: number;
 }

@@ -2,24 +2,20 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { ExpenseList } from "./ExpenseList";
-import { getCategoryName, getParentCategory, CATEGORY_HIERARCHY, CATEGORY_IDS, CATEGORY_NAMES } from "@/lib/fileProcessing/constants";
+import { getCategoryName, getParentCategory, CATEGORY_HIERARCHY, CATEGORY_IDS } from "@/lib/fileProcessing/constants";
 import { DashboardFilters, FilterOptions } from "./DashboardFilters";
 import { GranularityType } from "./charts/ChartGranularity";
 import { CategoryGranularityType } from './charts/CategoryGranularity';
 import { Transaction as TransactionType } from "@/types/transaction";
-import { DashboardStats } from "@/types/stats";
 import { useCategoryGranularity } from "@/hooks/useCategoryGranularity";
 import { usePersistedFilters } from "@/hooks/usePersistedFilters";
 import { usePageVisibility } from "@/hooks/usePageVisibility";
+import { useChartData } from "@/hooks/useChartData";
+import { useTransactionStats } from "@/hooks/useTransactionStats";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { PieChartIcon, BarChart, Calendar } from "lucide-react";
 import { BudgetPlanner } from "./budgeting/BudgetPlanner";
 import { Overview } from "./tabs/Overview";
-
-interface Transaction extends TransactionType {
-  shared_with?: string[];
-  split_type?: string;
-}
 
 interface Profile {
   id: string;
@@ -29,20 +25,15 @@ interface Profile {
 }
 
 export function Dashboard() {
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [transactions, setTransactions] = useState<TransactionType[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
-  const [filteredTransactions, setFilteredTransactions] = useState<Transaction[]>([]);
+  const [filteredTransactions, setFilteredTransactions] = useState<TransactionType[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [granularity, setGranularity] = useState<GranularityType>("month");
-  const [displayedTransactions, setDisplayedTransactions] = useState<Transaction[]>([]);
-  const [stats, setStats] = useState<DashboardStats>({
-    balance: 0,
-    monthlyExpenses: 0,
-    transfersAmandine: 0,
-    transfersAntonin: 0,
-  });
-  const { filters, updateFilters } = usePersistedFilters('personal');
+  const [displayedTransactions, setDisplayedTransactions] = useState<TransactionType[]>([]);
+  
   const { user } = useAuth();
+  const { filters, updateFilters } = usePersistedFilters('personal');
   const { categoryGranularity, handleGranularityChange } = useCategoryGranularity({
     onTransactionsLoaded: (data) => {
       setTransactions(data);
@@ -51,12 +42,22 @@ export function Dashboard() {
   });
   usePageVisibility();
 
+  // Utiliser les nouveaux hooks
+  const stats = useTransactionStats(filteredTransactions);
+  const chartData = useChartData(
+    filteredTransactions,
+    granularity,
+    selectedCategory,
+    filters,
+    categoryGranularity
+  );
+
   useEffect(() => {
     if (!user) return;
 
     const fetchData = async () => {
       if (document.hidden) return;
-      // Charger les transactions
+      
       const { data: transactionsData, error: transactionsError } =
         await supabase
           .from("transactions")
@@ -69,7 +70,6 @@ export function Dashboard() {
         return;
       }
 
-      // Charger les profils
       const { data: profilesData, error: profilesError } = await supabase
         .from("profiles")
         .select("*");
@@ -79,40 +79,33 @@ export function Dashboard() {
         return;
       }
 
-      const transactions = transactionsData || [];
-      const profiles = profilesData || [];
-
-      setTransactions(transactions);
-      setProfiles(profiles);
-      applyFilters(transactions, filters);
+      setTransactions(transactionsData || []);
+      setProfiles(profilesData || []);
+      applyFilters(transactionsData || [], filters);
     };
 
     fetchData();
   }, [user]);
 
-  const applyFilters = (transactions: Transaction[], currentFilters: FilterOptions) => {
+  const applyFilters = (transactions: TransactionType[], currentFilters: FilterOptions) => {
     let filtered = [...transactions];
 
-    // Filtre par recherche
     if (currentFilters.search) {
       const searchLower = currentFilters.search.toLowerCase();
       filtered = filtered.filter(
-        (t) =>
-          t.description.toLowerCase().includes(searchLower)
+        (t) => t.description.toLowerCase().includes(searchLower)
       );
     }
 
-    // Filtre par catégorie
     if (currentFilters.category && currentFilters.category !== "all") {
       filtered = filtered.filter((t) => {
         const parentCategory = getParentCategory(t.category_id);
-        return t.category_id === currentFilters.category || 
+        return t.category_id === currentFilters.category ||
                (parentCategory === currentFilters.category) ||
                (CATEGORY_HIERARCHY[currentFilters.category]?.includes(t.category_id || ''));
       });
     }
 
-    // Filtre par période
     if (currentFilters.startDate && currentFilters.endDate) {
       filtered = filtered.filter((t) => {
         const date = new Date(t.date);
@@ -121,35 +114,9 @@ export function Dashboard() {
     }
 
     setFilteredTransactions(filtered);
-
-    // Mettre à jour les statistiques
-    const totalExpenses = filtered
-      .filter((t: Transaction) => t.type === "expense")
-      .reduce((sum: number, t: Transaction) => sum + (t.amount || 0), 0);
-
-    const balance = filtered
-      .reduce((sum: number, t: Transaction) => {
-        return sum + (t.type === "income" ? t.amount : -t.amount);
-      }, 0);
-
-    const transfersAmandine = filtered
-      .filter((t: Transaction) => t.category_id === CATEGORY_IDS.TRANSFER_AMANDINE)
-      .reduce((sum: number, t: Transaction) => sum + (t.amount || 0), 0);
-
-    const transfersAntonin = filtered
-      .filter((t: Transaction) => t.category_id === CATEGORY_IDS.TRANSFER_ANTONIN)
-      .reduce((sum: number, t: Transaction) => sum + (t.amount || 0), 0);
-
-    setStats({
-      balance,
-      monthlyExpenses: totalExpenses,
-      transfersAmandine,
-      transfersAntonin,
-    });
   };
 
   useEffect(() => {
-    // Filtrer les transactions selon la sélection
     if (selectedCategory) {
       const filtered = filteredTransactions.filter(t => {
         const parentCategory = getParentCategory(t.category_id);
@@ -169,48 +136,11 @@ export function Dashboard() {
   };
 
   const handleChartClick = (categoryName: string) => {
-    // Trouver l'ID de la catégorie à partir du nom
-    const categoryId = Object.entries(CATEGORY_NAMES).find(
-      ([id, name]) => name === categoryName
+    const categoryId = Object.entries(getCategoryName).find(
+      ([, name]) => name === categoryName
     )?.[0];
-    
     setSelectedCategory(categoryId || null);
   };
-
-  const aggregateTransactionsByCategory = (transactions: Transaction[], type: "expense" | "income") => {
-    const filtered = transactions.filter((t) => t.type === type);
-    if (filtered.length === 0) return {};
-
-    return filtered.reduce((acc, t) => {
-      if (!t.category_id) {
-        const categoryName = "Non catégorisé";
-        acc[categoryName] = (acc[categoryName] || 0) + t.amount;
-        return acc;
-      }
-
-      let categoryId = t.category_id;
-      
-      // Si on est en mode "main", on remonte à la catégorie parente
-      if (categoryGranularity === "main") {
-        categoryId = getParentCategory(t.category_id) || t.category_id;
-      }
-      // Si une catégorie spécifique est sélectionnée, on l'utilise telle quelle
-      else if (categoryGranularity !== "all") {
-        categoryId = t.category_id;
-      }
-
-      const categoryName = getCategoryName(categoryId);
-      acc[categoryName] = (acc[categoryName] || 0) + t.amount;
-      return acc;
-    }, {} as Record<string, number>);
-  };
-
-  // Données pour le graphique des dépenses par catégorie
-  const expensesByCategory = aggregateTransactionsByCategory(filteredTransactions, "expense");
-
-  // Données pour le graphique des revenus par catégorie
-  const incomesByCategory = aggregateTransactionsByCategory(filteredTransactions, "income");
-
 
   return (
     <div className="container mx-auto p-4">
@@ -235,8 +165,8 @@ export function Dashboard() {
         <TabsContent value="overview" className="mt-6">
           <Overview
             filteredTransactions={filteredTransactions}
-            expensesByCategory={expensesByCategory}
-            incomesByCategory={incomesByCategory}
+            expensesByCategory={chartData.categoryData}
+            incomesByCategory={chartData.incomeData}
             categoryGranularity={categoryGranularity}
             granularity={granularity}
             handleGranularityChange={setGranularity}
@@ -244,6 +174,11 @@ export function Dashboard() {
             handleCategoryGranularityChange={(value: CategoryGranularityType) => handleGranularityChange(value, filters)}
             filters={filters}
             stats={stats}
+            timeData={chartData.timeData}
+            topExpenses={chartData.topExpenses}
+            hasIncomeData={chartData.hasIncomeData}
+            hasExpenseData={chartData.hasExpenseData}
+            hasTimeData={chartData.hasTimeData}
           />
         </TabsContent>
 

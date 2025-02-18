@@ -11,7 +11,7 @@ import {
 } from "recharts";
 import { GranularityType } from "./ChartGranularity";
 import { Checkbox } from "@/components/ui/checkbox";
-import { CATEGORY_HIERARCHY, getCategoryName, getParentCategory, CATEGORY_NAMES, CATEGORY_COLORS } from "@/lib/fileProcessing/constants";
+import { CATEGORY_HIERARCHY, getCategoryName, getParentCategory, CATEGORY_COLORS } from "@/lib/fileProcessing/constants";
 import { useState, useEffect } from "react";
 import { Transaction } from "@/types/transaction";
 
@@ -290,7 +290,7 @@ export function ExpenseOverTime({
                 key={subCat}
                 type="monotone"
                 dataKey={subCat}
-                stroke={CATEGORY_COLORS[CATEGORY_NAMES[subCat]]}
+                stroke={CATEGORY_COLORS[getCategoryName(subCat)]}
                 name={getCategoryName(subCat)}
                 dot={false}
                 isAnimationActive={false}

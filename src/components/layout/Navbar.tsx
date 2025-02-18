@@ -16,6 +16,7 @@ import { TransactionForm } from "../transactions/TransactionForm";
 import { useState, useEffect } from "react";
 import { getCategories } from "@/lib/services/transaction.service";
 import type { TransactionCategory } from "@/types/transaction";
+import { Navigation } from "./Navigation";
 
 export function Navbar() {
   const { user, signOut } = useAuth();
@@ -42,6 +43,7 @@ export function Navbar() {
               </Button>
             </SheetTrigger>
             <SheetContent side="left" className="w-[240px] p-4">
+              <Navigation className="mt-4" />
             </SheetContent>
           </Sheet>
           <Link to="/" className="mr-6 flex items-center space-x-2">

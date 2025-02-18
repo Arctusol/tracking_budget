@@ -24,16 +24,7 @@ export function useCategoryGranularity({ onTransactionsLoaded, groupId }: UseCat
     }
 
     // Appliquer les filtres
-    if (filters.category && filters.category !== "all") {
-      if (granularity === filters.category) {
-        // Si on sélectionne la catégorie principale, inclure toutes les sous-catégories
-        const subCategories = CATEGORY_HIERARCHY[filters.category] || [];
-        query = query.in("category_id", [filters.category, ...subCategories]);
-      } else {
-        // Pour une sous-catégorie spécifique
-        query = query.eq("category_id", granularity);
-      }
-    }
+
 
     // Appliquer les filtres de date
     if (filters.startDate) {
@@ -55,22 +46,11 @@ export function useCategoryGranularity({ onTransactionsLoaded, groupId }: UseCat
 
   const handleGranularityChange = useCallback(async (value: CategoryGranularityType, currentFilters: FilterOptions) => {
     setCategoryGranularity(value);
-    
-    // Si la valeur n'est ni "main" ni "all", c'est une catégorie spécifique
-    if (value !== "main" && value !== "all") {
-      const newFilters = {
-        ...currentFilters,
-        category: value
-      };
-      await fetchTransactions(newFilters, value);
-    } else {
-      await fetchTransactions(currentFilters, value);
-    }
+    await fetchTransactions(currentFilters, value);
   }, [fetchTransactions]);
 
   return {
     categoryGranularity,
-    handleGranularityChange,
-    fetchTransactions
+    handleGranularityChange
   };
-} 
+}
