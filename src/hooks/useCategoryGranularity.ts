@@ -25,7 +25,24 @@ export function useCategoryGranularity({ onTransactionsLoaded, groupId }: UseCat
 
     // Appliquer les filtres
 
-
+    if (filters.category && filters.category !== "all") {
+      if (granularity === "main") {
+        // Si on est en mode "catégories principales", inclure la catégorie principale et ses sous-catégories
+        const subCategories = CATEGORY_HIERARCHY[filters.category] || [];
+        query = query.in("category_id", [filters.category, ...subCategories]);
+      } else if (granularity === "all") {
+        // Si on veut toutes les sous-catégories, même comportement que "main"
+        const subCategories = CATEGORY_HIERARCHY[filters.category] || [];
+        query = query.in("category_id", [filters.category, ...subCategories]);
+      } else if (granularity === filters.category) {
+        // Si on sélectionne la catégorie principale elle-même
+        const subCategories = CATEGORY_HIERARCHY[filters.category] || [];
+        query = query.in("category_id", [filters.category, ...subCategories]);
+      } else {
+        // Pour une sous-catégorie spécifique
+        query = query.eq("category_id", granularity);
+      }
+    }
     // Appliquer les filtres de date
     if (filters.startDate) {
       query = query.gte("date", filters.startDate.toISOString());

@@ -30,7 +30,7 @@ function App() {
                     <Route path="/receipts-dashboard" element={<ReceiptsDashboardPage />} />
                     <Route path="/transactions" element={<TransactionsPage />} />
                     <Route path="/groups" element={<GroupsPage />} />
-                    <Route path="/groups/:groupId" element={<GroupDashboard />} />
+                    <Route path="/groups/:slug" element={<GroupDashboard />} />
                     <Route path="/import" element={<ImportPage />} />
                     <Route path="/receipts" element={<ReceiptsPage />} />
                     <Route path="/receipts-dashboard" element={<ReceiptsDashboardPage />} />

@@ -61,14 +61,6 @@ export function Overview({
     <div className="w-full gap-4 space-y-4 ">
       <StatsDisplay stats={stats} />
 
-      <div className="flex justify-end gap-4 mb-4">
-        <CategoryGranularity 
-          value={categoryGranularity} 
-          onChange={handleCategoryGranularityChange}
-          selectedFilter={filters.category}
-        />
-        <ChartGranularity value={granularity} onChange={handleGranularityChange} />
-      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-6">
         {hasExpenseData && (

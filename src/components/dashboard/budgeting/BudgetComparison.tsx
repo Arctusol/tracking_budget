@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Transaction } from "@/types/transaction";
 import { MonthlyBudget } from "@/types/budget";
-import { CATEGORY_NAMES } from "@/lib/fileProcessing/constants";
+import { CATEGORY_NAMES, getParentCategory } from "@/lib/fileProcessing/constants";
 import { format, parseISO } from "date-fns";
 import { formatCurrency } from "@/lib/utils";
 import {
@@ -36,23 +36,32 @@ export function BudgetComparison({ transactions, currentBudget }: BudgetComparis
     return transactionMonth === currentBudget.month;
   });
 
-  // Préparer les données pour la comparaison
-  const comparisonData: ComparisonData[] = Object.entries(currentBudget.categories).map(([categoryId, category]) => {
-    const actualAmount = currentMonthTransactions
-      .filter(t => t.category_id === categoryId)
-      .reduce((sum, t) => sum + t.amount, 0);
+  // Filtrer et préparer les données pour la comparaison
+  const comparisonData: ComparisonData[] = Object.entries(currentBudget.categories)
+    .filter(([categoryId, category]) => {
+      const hasTransactions = currentMonthTransactions.some(t => 
+        t.category_id === categoryId || 
+        getParentCategory(t.category_id) === categoryId
+      );
+      const hasAmount = category.totalEstimated > 0 || category.totalAdjusted > 0;
+      return hasTransactions || hasAmount;
+    })
+    .map(([categoryId, category]) => {
+      const actualAmount = currentMonthTransactions
+        .filter(t => t.category_id === categoryId)
+        .reduce((sum, t) => sum + t.amount, 0);
 
-    const budgetedAmount = category.totalAdjusted ?? category.totalEstimated;
-    
-    return {
-      categoryId,
-      categoryName: CATEGORY_NAMES[categoryId],
-      budgeted: budgetedAmount,
-      actual: actualAmount,
-      difference: budgetedAmount - actualAmount,
-      percentageUsed: (actualAmount / budgetedAmount) * 100
-    };
-  });
+      const budgetedAmount = category.totalAdjusted ?? category.totalEstimated;
+      
+      return {
+        categoryId,
+        categoryName: CATEGORY_NAMES[categoryId],
+        budgeted: budgetedAmount,
+        actual: actualAmount,
+        difference: budgetedAmount - actualAmount,
+        percentageUsed: (actualAmount / budgetedAmount) * 100
+      };
+    });
 
   // Données pour le graphique
   const chartData = comparisonData.map(data => ({

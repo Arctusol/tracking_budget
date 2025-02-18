@@ -8,7 +8,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Calendar, Filter } from "lucide-react";
-import { CATEGORY_IDS, getCategoryName } from "@/lib/fileProcessing/constants";
+import { CATEGORY_IDS, getCategoryName, CATEGORY_HIERARCHY } from "@/lib/fileProcessing/constants";
 
 export interface FilterOptions {
   search: string;
@@ -21,9 +21,10 @@ export interface FilterOptions {
 interface DashboardFiltersProps {
   onFilterChange: (filters: FilterOptions) => void;
   filters: FilterOptions;
+  usedCategories: string[]; // Nouvelle prop
 }
 
-export function DashboardFilters({ onFilterChange, filters }: DashboardFiltersProps) {
+export function DashboardFilters({ onFilterChange, filters, usedCategories }: DashboardFiltersProps) {
   const handleSearchChange = (value: string) => {
     onFilterChange({ ...filters, search: value });
   };
@@ -97,6 +98,15 @@ export function DashboardFilters({ onFilterChange, filters }: DashboardFiltersPr
     { id: CATEGORY_IDS.TRANSFERS, name: "Virements" }
   ];
 
+  // Filtrer les catégories principales pour n'inclure que celles qui sont utilisées
+  const filteredMainCategories = mainCategories.filter(category => {
+    if (usedCategories.includes(category.id)) return true;
+    
+    // Vérifier si une sous-catégorie est utilisée
+    const subCategories = CATEGORY_HIERARCHY[category.id] || [];
+    return subCategories.some(subCatId => usedCategories.includes(subCatId));
+  });
+
   return (
     <div className="bg-white p-4 rounded-lg shadow mb-4">
       <div className="flex flex-col md:flex-row gap-4">
@@ -120,7 +130,7 @@ export function DashboardFilters({ onFilterChange, filters }: DashboardFiltersPr
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Toutes les catégories</SelectItem>
-              {mainCategories.map((category) => (
+              {filteredMainCategories.map((category) => (
                 <SelectItem key={category.id} value={category.id}>
                   {category.name}
                 </SelectItem>

@@ -51,7 +51,7 @@ export function Navbar() {
           </Link>
         </div>
 
-        <div className="flex flex-1 items-center justify-end space-x-2">
+        <div className="full-width flex flex-1 items-center justify-end space-x-2">
           <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>
               <Button variant="outline" size="icon" className="mr-2">

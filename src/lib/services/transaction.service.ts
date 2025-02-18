@@ -1,6 +1,7 @@
 import { supabase } from "../supabase";
 import { ProcessedTransaction } from "../fileProcessing/types";
 import { Transaction, TransactionCategory, TransactionFilters } from "@/types/transaction";
+import { getCategoryName, getParentCategory, CATEGORY_HIERARCHY, CATEGORY_IDS } from "@/lib/fileProcessing/constants";
 
 // Fonction pour convertir une date du format FR vers ISO
 function convertToISODate(dateStr: string): string {
@@ -256,6 +257,31 @@ export async function deleteCategory(
     .eq("created_by", userId);
 
   if (error) throw error;
+}
+
+// Nouvelle fonction pour obtenir les catégories utilisées
+export async function getUsedCategories(userId: string): Promise<string[]> {
+  const { data: transactions, error } = await supabase
+    .from("transactions")
+    .select("category_id")
+    .eq("created_by", userId);
+
+  if (error) throw error;
+
+  const usedCategoryIds = new Set<string>();
+  
+  transactions?.forEach(transaction => {
+    if (transaction.category_id) {
+      usedCategoryIds.add(transaction.category_id);
+      // Ajouter aussi la catégorie parente si elle existe
+      const parentCategory = getParentCategory(transaction.category_id);
+      if (parentCategory) {
+        usedCategoryIds.add(parentCategory);
+      }
+    }
+  });
+
+  return Array.from(usedCategoryIds);
 }
 
 /**

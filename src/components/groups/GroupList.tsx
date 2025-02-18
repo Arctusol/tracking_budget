@@ -6,9 +6,24 @@ import { Card } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { UserPlus, Users, ArrowRight } from 'lucide-react';
 import { CreateGroupDialog } from './CreateGroupDialog';
+import { slugify } from '@/lib/utils/slugify';
+
+interface Group {
+  id: string;
+  name: string;
+  description?: string;
+  members?: Array<{
+    user_id: string;
+    profiles?: {
+      id: string;
+      full_name?: string;
+      avatar_url?: string;
+    };
+  }>;
+}
 
 export function GroupList() {
-  const [groups, setGroups] = useState([]);
+  const [groups, setGroups] = useState<Group[]>([]);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const navigate = useNavigate();
 
@@ -25,17 +40,18 @@ export function GroupList() {
     }
   }
 
-  function handleGroupClick(groupId: string) {
-    navigate(`/groups/${groupId}`);
+  function handleGroupClick(group: Group) {
+    const slug = slugify(group.name);
+    navigate(`/groups/${slug}`);
   }
 
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold">Mes Groupes</h2>
+        <h2 className="text-2xl font-bold">Mes groupes</h2>
         <Button onClick={() => setIsCreateDialogOpen(true)}>
           <UserPlus className="mr-2 h-4 w-4" />
-          Nouveau Groupe
+          Nouveau groupe
         </Button>
       </div>
 
@@ -44,7 +60,7 @@ export function GroupList() {
           <Card 
             key={group.id} 
             className="p-4 cursor-pointer hover:shadow-lg transition-shadow"
-            onClick={() => handleGroupClick(group.id)}
+            onClick={() => handleGroupClick(group)}
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-4">

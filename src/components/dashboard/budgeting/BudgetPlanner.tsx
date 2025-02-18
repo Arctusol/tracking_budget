@@ -1,14 +1,12 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
-import { CATEGORY_NAMES } from "@/lib/fileProcessing/constants";
+import { CATEGORY_NAMES, getParentCategory } from "@/lib/fileProcessing/constants";
 import { MonthlyBudget } from "@/types/budget";
 import { Transaction } from "@/types/transaction";
 import { useBudgetAnalysis } from "@/hooks/useBudgetAnalysis";
-import { TrendingDown, TrendingUp } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { format, subMonths } from "date-fns";
-import { cn } from "@/lib/utils";
 import { BudgetComparison } from "./BudgetComparison";
 
 interface BudgetPlannerProps {
@@ -64,6 +62,41 @@ export function BudgetPlanner({ transactions }: BudgetPlannerProps) {
     });
   };
 
+  // Filtrer les catégories sans transactions et sans budget
+  const filteredCategories = Object.entries(currentBudget.categories)
+    .filter(([categoryId, category]) => {
+      const hasTransactions = transactions.some(t => 
+        t.category_id === categoryId || 
+        getParentCategory(t.category_id) === categoryId
+      );
+      const hasEstimatedAmount = Object.values(category.subCategories)
+        .some(sub => sub.estimatedAmount > 0);
+      const hasAdjustedAmount = Object.values(category.subCategories)
+        .some(sub => (sub.adjustedAmount ?? 0) > 0);
+      
+      return hasTransactions || hasEstimatedAmount || hasAdjustedAmount;
+    })
+    .reduce((acc, [categoryId, category]) => {
+      acc[categoryId] = {
+        ...category,
+        subCategories: Object.entries(category.subCategories)
+          .filter(([subCatId, subCat]) => {
+            const hasTransactions = transactions.some(t => t.category_id === subCatId);
+            return hasTransactions || subCat.estimatedAmount > 0 || (subCat.adjustedAmount ?? 0) > 0;
+          })
+          .reduce((subAcc, [subCatId, subCat]) => {
+            subAcc[subCatId] = subCat;
+            return subAcc;
+          }, {} as typeof category.subCategories)
+      };
+      return acc;
+    }, {} as typeof currentBudget.categories);
+
+  const displayBudget = {
+    ...currentBudget,
+    categories: filteredCategories
+  };
+
   const currentDate = new Date();
   const previousMonth = format(subMonths(currentDate, 1), 'MMMM yyyy');
   const startHistoricalPeriod = format(subMonths(currentDate, 6), 'MMMM yyyy');
@@ -112,10 +145,10 @@ export function BudgetPlanner({ transactions }: BudgetPlannerProps) {
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>Budget Prévisionnel - {currentBudget.month}</CardTitle>
+          <CardTitle>Budget Prévisionnel - {displayBudget.month}</CardTitle>
         </CardHeader>
         <CardContent>
           <Table>
@@ -167,7 +200,7 @@ export function BudgetPlanner({ transactions }: BudgetPlannerProps) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {Object.entries(currentBudget.categories).map(([mainCategory, category]) => (
+              {Object.entries(displayBudget.categories).map(([mainCategory, category]) => (
                 <>
                   <TableRow key={mainCategory} className="font-medium bg-muted/50">
                     <TableCell>{CATEGORY_NAMES[mainCategory]}</TableCell>
@@ -249,7 +282,7 @@ export function BudgetPlanner({ transactions }: BudgetPlannerProps) {
                 <TableCell>Total Dépenses</TableCell>
                 <TableCell>
                   {formatCurrency(
-                    Object.values(currentBudget.categories).reduce(
+                    Object.values(displayBudget.categories).reduce(
                       (sum, category) => sum + Object.values(category.subCategories).reduce(
                         (subSum, sub) => subSum + sub.average6Months,
                         0
@@ -260,7 +293,7 @@ export function BudgetPlanner({ transactions }: BudgetPlannerProps) {
                 </TableCell>
                 <TableCell>
                   {formatCurrency(
-                    Object.values(currentBudget.categories).reduce(
+                    Object.values(displayBudget.categories).reduce(
                       (sum, category) => sum + Object.values(category.subCategories).reduce(
                         (subSum, sub) => subSum + sub.average3Months,
                         0
@@ -271,7 +304,7 @@ export function BudgetPlanner({ transactions }: BudgetPlannerProps) {
                 </TableCell>
                 <TableCell>
                   {formatCurrency(
-                    Object.values(currentBudget.categories).reduce(
+                    Object.values(displayBudget.categories).reduce(
                       (sum, category) => sum + Object.values(category.subCategories).reduce(
                         (subSum, sub) => subSum + sub.previousMonth,
                         0
@@ -282,14 +315,14 @@ export function BudgetPlanner({ transactions }: BudgetPlannerProps) {
                 </TableCell>
                 <TableCell>
                   {(() => {
-                    const totalAverage3Months = Object.values(currentBudget.categories).reduce(
+                    const totalAverage3Months = Object.values(displayBudget.categories).reduce(
                       (sum, category) => sum + Object.values(category.subCategories).reduce(
                         (subSum, sub) => subSum + sub.average3Months,
                         0
                       ),
                       0
                     );
-                    const totalPrevious = Object.values(currentBudget.categories).reduce(
+                    const totalPrevious = Object.values(displayBudget.categories).reduce(
                       (sum, category) => sum + Object.values(category.subCategories).reduce(
                         (subSum, sub) => subSum + sub.previousMonth,
                         0
@@ -301,14 +334,14 @@ export function BudgetPlanner({ transactions }: BudgetPlannerProps) {
                 </TableCell>
                 <TableCell>
                   {(() => {
-                    const totalAverage6Months = Object.values(currentBudget.categories).reduce(
+                    const totalAverage6Months = Object.values(displayBudget.categories).reduce(
                       (sum, category) => sum + Object.values(category.subCategories).reduce(
                         (subSum, sub) => subSum + sub.average6Months,
                         0
                       ),
                       0
                     );
-                    const totalPrevious = Object.values(currentBudget.categories).reduce(
+                    const totalPrevious = Object.values(displayBudget.categories).reduce(
                       (sum, category) => sum + Object.values(category.subCategories).reduce(
                         (subSum, sub) => subSum + sub.previousMonth,
                         0
@@ -319,10 +352,10 @@ export function BudgetPlanner({ transactions }: BudgetPlannerProps) {
                   })()}
                 </TableCell>
                 <TableCell>
-                  {formatCurrency(currentBudget.totalEstimated)}
+                  {formatCurrency(displayBudget.totalEstimated)}
                 </TableCell>
                 <TableCell>
-                  {formatCurrency(currentBudget.totalAdjusted || currentBudget.totalEstimated)}
+                  {formatCurrency(displayBudget.totalAdjusted || displayBudget.totalEstimated)}
                 </TableCell>
               </TableRow>
             </TableBody>
@@ -333,7 +366,7 @@ export function BudgetPlanner({ transactions }: BudgetPlannerProps) {
       {/* Ajout de la vue comparative */}
       <BudgetComparison 
         transactions={transactions}
-        currentBudget={currentBudget}
+        currentBudget={displayBudget}
       />
     </div>
   );

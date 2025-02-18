@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { ExpenseList } from "./ExpenseList";
@@ -16,6 +16,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { PieChartIcon, BarChart, Calendar } from "lucide-react";
 import { BudgetPlanner } from "./budgeting/BudgetPlanner";
 import { Overview } from "./tabs/Overview";
+import { CategoryGranularity } from './charts/CategoryGranularity';
+import { ChartGranularity } from './charts/ChartGranularity';
 
 interface Profile {
   id: string;
@@ -24,7 +26,19 @@ interface Profile {
   avatar_url?: string;
 }
 
-export function Dashboard() {
+interface DashboardProps {
+  groupId?: string;
+  onAddMember?: () => void;
+  members?: Profile[];
+  additionalActions?: React.ReactNode;
+}
+
+export function Dashboard({ 
+  groupId, 
+  onAddMember, 
+  members = [], 
+  additionalActions 
+}: DashboardProps) {
   const [transactions, setTransactions] = useState<TransactionType[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [filteredTransactions, setFilteredTransactions] = useState<TransactionType[]>([]);
@@ -33,12 +47,13 @@ export function Dashboard() {
   const [displayedTransactions, setDisplayedTransactions] = useState<TransactionType[]>([]);
   
   const { user } = useAuth();
-  const { filters, updateFilters } = usePersistedFilters('personal');
+  const { filters, updateFilters } = usePersistedFilters(groupId ? 'group' : 'personal', groupId);
   const { categoryGranularity, handleGranularityChange } = useCategoryGranularity({
     onTransactionsLoaded: (data) => {
       setTransactions(data);
       applyFilters(data, filters);
-    }
+    },
+    groupId
   });
   usePageVisibility();
 
@@ -58,12 +73,22 @@ export function Dashboard() {
     const fetchData = async () => {
       if (document.hidden) return;
       
-      const { data: transactionsData, error: transactionsError } =
-        await supabase
-          .from("transactions")
-          .select("*")
+      let query = supabase
+        .from("transactions")
+        .select("*")
+        .order("date", { ascending: false });
+
+      if (groupId) {
+        // Mode groupe : afficher uniquement les transactions du groupe
+        query = query.eq("group_id", groupId);
+      } else {
+        // Mode personnel : afficher uniquement les transactions personnelles (sans group_id)
+        query = query
           .eq("created_by", user.id)
-          .order("date", { ascending: false });
+          .is("group_id", null);
+      }
+
+      const { data: transactionsData, error: transactionsError } = await query;
 
       if (transactionsError) {
         console.error("Error loading transactions:", transactionsError);
@@ -85,7 +110,7 @@ export function Dashboard() {
     };
 
     fetchData();
-  }, [user]);
+  }, [user, groupId]);
 
   const applyFilters = (transactions: TransactionType[], currentFilters: FilterOptions) => {
     let filtered = [...transactions];
@@ -142,9 +167,45 @@ export function Dashboard() {
     setSelectedCategory(categoryId || null);
   };
 
+  // Nouvelle fonction pour obtenir les catégories utilisées
+  const getUsedCategories = useMemo(() => {
+    const usedCategoryIds = new Set<string>();
+    
+    transactions.forEach(transaction => {
+      if (transaction.category_id) {
+        usedCategoryIds.add(transaction.category_id);
+        // Ajouter aussi la catégorie parente si elle existe
+        const parentCategory = getParentCategory(transaction.category_id);
+        if (parentCategory) {
+          usedCategoryIds.add(parentCategory);
+        }
+      }
+    });
+    
+    return Array.from(usedCategoryIds);
+  }, [transactions]);
+
   return (
     <div className="container mx-auto p-4">
-      <DashboardFilters filters={filters} onFilterChange={handleFilterChange} />
+      <div className="space-y-4">
+        <DashboardFilters 
+          filters={filters} 
+          onFilterChange={handleFilterChange}
+          usedCategories={getUsedCategories}
+        />
+
+        <div className="flex justify-end gap-4">
+          <CategoryGranularity 
+            value={categoryGranularity} 
+            onChange={(value) => handleGranularityChange(value, filters)}
+            selectedFilter={filters.category}
+          />
+          <ChartGranularity 
+            value={granularity} 
+            onChange={setGranularity} 
+          />
+        </div>
+      </div>
 
       <Tabs defaultValue="overview" className="w-full">
         <TabsList>

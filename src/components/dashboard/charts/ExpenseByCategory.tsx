@@ -40,7 +40,7 @@ const renderActiveShape = (props: ActiveShapeProps) => {
         startAngle={startAngle}
         endAngle={endAngle}
         innerRadius={outerRadius + 8}
-        outerRadius={outerRadius + 10}
+        outerRadius={outerRadius + 6}
         fill={fill}
       />
     </g>
@@ -78,7 +78,7 @@ const CustomLegend = memo(({ payload }: ChartLegendProps) => {
       {payload.map((entry, index) => (
         <li
           key={`item-${index}`}
-          className="flex items-center gap-1 text-sm px-2 py-1 rounded-full"
+          className="flex items-center gap-1 text-sm px-1 py-1 rounded-full"
           style={{ backgroundColor: `${entry.color}20` }}
         >
           <span
