@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { Transaction } from '@/types/transaction';
-import { CATEGORY_COLORS, CATEGORY_HIERARCHY, CATEGORY_NAMES, getParentCategory } from '@/lib/fileProcessing/constants';
+import { CATEGORY_COLORS, CATEGORY_HIERARCHY, CATEGORY_NAMES, getParentCategory } from '@/lib/constants/constants';
 import { GranularityType } from '@/components/dashboard/charts/ChartGranularity';
 import { CategoryGranularityType } from '@/components/dashboard/charts/CategoryGranularity';
 

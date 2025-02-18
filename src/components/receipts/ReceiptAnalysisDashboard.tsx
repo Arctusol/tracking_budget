@@ -17,6 +17,7 @@ import {
 } from "recharts";
 import { useAuth } from "@/lib/auth";
 import { getReceiptsByUser, type ReceiptData } from "@/lib/services/receipt.service";
+import {getCategoryName } from "@/lib/constants/constants";
 import {
   Table,
   TableBody,
@@ -68,7 +69,7 @@ export function ReceiptAnalysisDashboard() {
 
       // Process category data
       const categoryTotals = receipts.reduce((acc: Record<string, number>, receipt) => {
-        const category = receipt.category || "Uncategorized";
+        const category = receipt.category_id || "Uncategorized";
         acc[category] = (acc[category] || 0) + (receipt.total || 0);
         return acc;
       }, {});
@@ -183,7 +184,9 @@ export function ReceiptAnalysisDashboard() {
                       {format(new Date(receipt.date), "MMM d, yyyy")}
                     </TableCell>
                     <TableCell>{receipt.merchantName || "Unknown"}</TableCell>
-                    <TableCell>{receipt.category}</TableCell>
+                    <TableCell>
+                      {getCategoryName(receipt.category_id)}
+                    </TableCell>
                     <TableCell className="text-right">
                       ${receipt.total.toFixed(2)}
                     </TableCell>

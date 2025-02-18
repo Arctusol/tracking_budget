@@ -1,5 +1,5 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CATEGORY_HIERARCHY, CATEGORY_NAMES } from "@/lib/fileProcessing/constants";
+import { CATEGORY_HIERARCHY, CATEGORY_NAMES } from "@/lib/constants/constants";
 import { useEffect, useState } from "react";
 import { getUsedCategories } from "@/lib/services/transaction.service";
 import { useAuth } from "@/lib/auth";

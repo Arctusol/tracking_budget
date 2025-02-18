@@ -1,4 +1,4 @@
-import { CATEGORY_IDS } from './constants';
+import { CATEGORY_IDS } from '../constants/constants';
 
 export function detectCategory(description: string, amount: number): string | undefined {
   // Convertir en minuscules et nettoyer la description

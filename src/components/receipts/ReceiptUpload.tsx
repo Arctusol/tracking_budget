@@ -38,21 +38,10 @@ export function ReceiptUpload() {
     setError("");
 
     try {
-      // Convert file to base64 for Azure analysis
-      const base64Data = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const base64 = (reader.result as string).split(",")[1];
-          resolve(base64);
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
-
       setUploadProgress(20);
 
       // Analyze receipt with Azure
-      const receiptData = await analyzeReceipt(base64Data);
+      const receiptData = await analyzeReceipt(file);
       setUploadProgress(60);
 
       if (!receiptData) {
@@ -82,7 +71,8 @@ export function ReceiptUpload() {
       // Add the image URL to the receipt data
       const receiptWithImage = {
         ...receiptData,
-        imageUrl: publicUrl
+        image_url: publicUrl,
+        user_id: user.id
       };
 
       setAnalyzedReceipt(receiptWithImage);
@@ -132,16 +122,33 @@ export function ReceiptUpload() {
     }
   };
 
+  const handleUpdateCategory = (itemIndex: number, categoryId: string) => {
+    if (!analyzedReceipt) return;
+
+    setAnalyzedReceipt({
+      ...analyzedReceipt,
+      items: analyzedReceipt.items.map((item, index) => 
+        index === itemIndex ? { ...item, product_category_id: categoryId } : item
+      )
+    });
+  };
+
+  const handleUpdateReceipt = (updatedReceipt: ReceiptData) => {
+    setAnalyzedReceipt(updatedReceipt);
+  };
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {!isUploading && !analyzedReceipt && !error && (
         <Card className="p-6">
           <FileUploadZone
             onFileSelect={handleFileSelect}
             accept={{
-              "image/*": [".png", ".jpg", ".jpeg"]
+              "image/*": [".png", ".jpg", ".jpeg"],
+              "application/pdf": [".pdf"]
             }}
             maxFiles={1}
+            maxSize={10 * 1024 * 1024} // 10MB
           >
             <div className="flex flex-col items-center justify-center p-6 text-center">
               <div className="mb-4 rounded-full bg-primary/10 p-3">
@@ -165,6 +172,8 @@ export function ReceiptUpload() {
         receipt={analyzedReceipt}
         onConfirm={handleConfirm}
         onCancel={resetState}
+        onUpdateCategory={handleUpdateCategory}
+        onUpdateReceipt={handleUpdateReceipt}
       />
     </div>
   );

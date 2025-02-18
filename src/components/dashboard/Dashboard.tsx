@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { ExpenseList } from "./ExpenseList";
-import { getCategoryName, getParentCategory, CATEGORY_HIERARCHY, CATEGORY_IDS } from "@/lib/fileProcessing/constants";
+import { getCategoryName, getParentCategory, CATEGORY_HIERARCHY, CATEGORY_IDS } from "@/lib/constants/constants";
 import { DashboardFilters, FilterOptions } from "./DashboardFilters";
 import { GranularityType } from "./charts/ChartGranularity";
 import { CategoryGranularityType } from './charts/CategoryGranularity';

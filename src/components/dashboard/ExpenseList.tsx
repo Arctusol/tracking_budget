@@ -8,7 +8,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { getCategoryName } from "@/lib/fileProcessing/constants";
+import { getCategoryName } from "@/lib/constants/constants";
 
 interface Profile {
   id: string;

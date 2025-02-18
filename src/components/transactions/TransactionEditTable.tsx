@@ -5,7 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabase";
-import { CATEGORY_IDS, CATEGORY_NAMES, getCategoryName } from "@/lib/fileProcessing/constants";
+import { CATEGORY_IDS, CATEGORY_NAMES, getCategoryName } from "@/lib/constants/constants";
 
 interface Transaction {
   id: string;

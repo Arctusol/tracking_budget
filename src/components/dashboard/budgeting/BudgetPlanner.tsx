@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
-import { CATEGORY_NAMES, getParentCategory } from "@/lib/fileProcessing/constants";
+import { CATEGORY_NAMES, getParentCategory } from "@/lib/constants/constants";
 import { MonthlyBudget } from "@/types/budget";
 import { Transaction } from "@/types/transaction";
 import { useBudgetAnalysis } from "@/hooks/useBudgetAnalysis";

@@ -1,7 +1,7 @@
 import { supabase } from "../supabase";
 import { ProcessedTransaction } from "../fileProcessing/types";
 import { Transaction, TransactionCategory, TransactionFilters } from "@/types/transaction";
-import { getCategoryName, getParentCategory, CATEGORY_HIERARCHY, CATEGORY_IDS } from "@/lib/fileProcessing/constants";
+import { getCategoryName, getParentCategory, CATEGORY_HIERARCHY, CATEGORY_IDS } from "@/lib/constants/constants";
 
 // Fonction pour convertir une date du format FR vers ISO
 function convertToISODate(dateStr: string): string {

@@ -11,11 +11,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 import { useAuth } from "@/lib/auth";
-import { getReceiptsByUser } from "@/lib/services/receipt.service";
-import { ReceiptData } from "@/lib/services/receipt.service";
-import { AlertCircle, RefreshCw, ExternalLink } from "lucide-react";
+import { getReceiptsByUser, type ReceiptData } from "@/lib/services/receipt.service";
+import { AlertCircle, RefreshCw, ExternalLink, ImageIcon } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
+import { getCategoryName } from "@/lib/constants/constants";
 
 export function ReceiptHistory() {
   const { user } = useAuth();
@@ -109,7 +109,7 @@ export function ReceiptHistory() {
                 </TableCell>
                 <TableCell>{receipt.merchantName || "Unknown"}</TableCell>
                 <TableCell>{receipt.total.toFixed(2)} €</TableCell>
-                <TableCell>{receipt.category}</TableCell>
+                <TableCell>{getCategoryName(receipt.category_id)}</TableCell>
                 <TableCell>
                   <Badge
                     variant={
@@ -124,15 +124,16 @@ export function ReceiptHistory() {
                   </Badge>
                 </TableCell>
                 <TableCell>
-                  {receipt.imageUrl && (
+                  {receipt.image_url && (
                     <a
-                      href={receipt.imageUrl}
+                      href={receipt.image_url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center text-sm text-primary hover:underline"
                     >
-                      View Receipt
-                      <ExternalLink className="h-4 w-4 ml-1" />
+                      <Button variant="ghost" size="sm">
+                        <ImageIcon className="h-4 w-4 mr-2" />
+                        Voir l'image
+                      </Button>
                     </a>
                   )}
                 </TableCell>

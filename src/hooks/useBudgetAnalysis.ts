@@ -2,7 +2,7 @@ import { format, parseISO, subMonths } from "date-fns";
 import { useEffect, useState } from "react";
 import { BudgetAnalysis, MonthlyBudget, CategoryBudget, BudgetEstimate } from "@/types/budget";
 import { Transaction } from "@/types/transaction";
-import { CATEGORY_HIERARCHY, CATEGORY_IDS, getParentCategory } from "@/lib/fileProcessing/constants";
+import { CATEGORY_HIERARCHY, CATEGORY_IDS, getParentCategory } from "@/lib/constants/constants";
 
 export const useBudgetAnalysis = (transactions: Transaction[]) => {
   const [budgetAnalysis, setBudgetAnalysis] = useState<BudgetAnalysis>({

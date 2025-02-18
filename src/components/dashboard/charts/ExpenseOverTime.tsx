@@ -11,7 +11,7 @@ import {
 } from "recharts";
 import { GranularityType } from "./ChartGranularity";
 import { Checkbox } from "@/components/ui/checkbox";
-import { CATEGORY_HIERARCHY, getCategoryName, getParentCategory, CATEGORY_COLORS } from "@/lib/fileProcessing/constants";
+import { CATEGORY_HIERARCHY, getCategoryName, getParentCategory, CATEGORY_COLORS } from "@/lib/constants/constants";
 import { useState, useEffect } from "react";
 import { Transaction } from "@/types/transaction";
 

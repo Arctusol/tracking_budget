@@ -4,7 +4,7 @@ import { useAuth } from "@/lib/auth";
 import { DashboardFilters, FilterOptions } from "@/components/dashboard/DashboardFilters";
 import { TransactionEditTable } from "@/components/transactions/TransactionEditTable";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { CATEGORY_HIERARCHY, CATEGORY_NAMES, getParentCategory } from "@/lib/fileProcessing/constants";
+import { CATEGORY_HIERARCHY, CATEGORY_NAMES, getParentCategory } from "@/lib/constants/constants";
 import { ExportButton } from "@/components/common/ExportButton";
 
 interface Transaction {

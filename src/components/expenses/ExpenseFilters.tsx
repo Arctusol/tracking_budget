@@ -8,7 +8,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Calendar, Filter } from "lucide-react";
-import { CATEGORY_IDS, getCategoryName } from "@/lib/fileProcessing/constants";
+import { CATEGORY_IDS, getCategoryName } from "@/lib/constants/constants";
 import React from "react";
 
 export interface FilterOptions {

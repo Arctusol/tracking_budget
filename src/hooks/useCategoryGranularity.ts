@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { FilterOptions } from '@/components/dashboard/DashboardFilters';
 import { CategoryGranularityType } from '@/components/dashboard/charts/CategoryGranularity';
-import { CATEGORY_HIERARCHY } from '@/lib/fileProcessing/constants';
+import { CATEGORY_HIERARCHY } from '@/lib/constants/constants';
 
 interface UseCategoryGranularityProps {
   onTransactionsLoaded: (transactions: any[]) => void;

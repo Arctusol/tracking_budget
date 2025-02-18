@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Transaction } from "@/types/transaction";
 import { MonthlyBudget } from "@/types/budget";
-import { CATEGORY_NAMES, getParentCategory } from "@/lib/fileProcessing/constants";
+import { CATEGORY_NAMES, getParentCategory } from "@/lib/constants/constants";
 import { format, parseISO } from "date-fns";
 import { formatCurrency } from "@/lib/utils";
 import {

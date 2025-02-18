@@ -3,7 +3,7 @@ import { ExpenseByCategory } from "../charts/ExpenseByCategory";
 import { IncomeByCategory } from "../charts/IncomeByCategory";
 import { ExpenseOverTime } from "../charts/ExpenseOverTime";
 import { TopExpenses } from "../charts/TopExpenses";
-import { CATEGORY_NAMES } from "@/lib/fileProcessing/constants";
+import { CATEGORY_NAMES } from "@/lib/constants/constants";
 import { CategoryGranularity, CategoryGranularityType } from "../charts/CategoryGranularity";
 import { ChartGranularity, GranularityType } from "../charts/ChartGranularity";
 import { StatsDisplay } from "../stats/StatsDisplay";

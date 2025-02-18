@@ -109,6 +109,9 @@ export function IncomeByCategory({ data, title, onChartClick }: CategoryChartPro
     }
   };
 
+  // Filtrer les données pour n'inclure que les catégories avec des valeurs
+  const filteredData = data.filter(item => item.value > 0);
+
   return (
     <Card className="p-4">
       <h3 className="font-semibold mb-4">{title}</h3>
@@ -116,7 +119,7 @@ export function IncomeByCategory({ data, title, onChartClick }: CategoryChartPro
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie
-              data={dataWithTotal}
+              data={filteredData}
               cx="50%"
               cy="45%"
               innerRadius={60}
@@ -130,7 +133,7 @@ export function IncomeByCategory({ data, title, onChartClick }: CategoryChartPro
               activeShape={renderActiveShape}
               style={{ cursor: 'pointer' }}
             >
-              {data.map((entry, index) => (
+              {filteredData.map((entry, index) => (
                 <Cell 
                   key={`cell-${index}`} 
                   fill={entry.color}

@@ -14,6 +14,7 @@ interface FileUploadZoneProps {
   onFileSelect?: (files: File[]) => void;
   accept?: { [key: string]: string[] };
   maxFiles?: number;
+  maxSize?: number;
   children?: React.ReactNode;
   isUploading?: boolean;
   uploadProgress?: number;
@@ -24,6 +25,7 @@ const FileUploadZone = ({
   onFileSelect = () => {},
   accept = { "image/*": [".jpg", ".png", ".jpeg"], "text/csv": [".csv"] },
   maxFiles = 10,
+  maxSize = 10 * 1024 * 1024, // 10MB par défaut
   children,
   isUploading = false,
   uploadProgress = 0,
@@ -53,16 +55,44 @@ const FileUploadZone = ({
     handleFiles(files);
   };
 
-  const handleFiles = (files: File[]) => {
-    const validFiles = files.filter((file) => {
-      const fileTypes = Object.values(accept).flat();
-      const isValidType = fileTypes.some((type) =>
-        file.name.toLowerCase().endsWith(type),
-      );
-      const isValidSize = file.size <= 10 * 1024 * 1024;
-      return isValidType && isValidSize;
-    });
+  const validateFiles = (files: File[]): File[] => {
+    // Vérifier le nombre de fichiers
+    if (files.length > maxFiles) {
+      console.warn(`Too many files. Maximum allowed: ${maxFiles}`);
+      return files.slice(0, maxFiles);
+    }
 
+    // Vérifier les types de fichiers et la taille
+    return files.filter(file => {
+      // Vérifier la taille
+      if (file.size > maxSize) {
+        console.warn(`File ${file.name} is too large. Maximum size: ${maxSize / 1024 / 1024}MB`);
+        return false;
+      }
+
+      // Vérifier le type
+      const fileType = file.type || '';
+      const fileExtension = `.${file.name.split('.').pop()}`.toLowerCase();
+      
+      const isValidType = Object.entries(accept).some(([mimeType, extensions]) => {
+        if (mimeType.endsWith('/*')) {
+          const baseType = mimeType.split('/')[0];
+          return fileType.startsWith(`${baseType}/`) || extensions.includes(fileExtension);
+        }
+        return fileType === mimeType || extensions.includes(fileExtension);
+      });
+
+      if (!isValidType) {
+        console.warn(`File ${file.name} has an invalid type`);
+        return false;
+      }
+
+      return true;
+    });
+  };
+
+  const handleFiles = (files: File[]) => {
+    const validFiles = validateFiles(files);
     if (validFiles.length > 0) {
       onFileSelect(validFiles);
     }
@@ -112,7 +142,7 @@ const FileUploadZone = ({
                 </div>
               </TooltipTrigger>
               <TooltipContent>
-                <p>Maximum file size: 10MB</p>
+                <p>Maximum file size: {maxSize / 1024 / 1024}MB</p>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>

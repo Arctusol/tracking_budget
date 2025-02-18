@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { Transaction } from '@/types/transaction';
-import { CATEGORY_IDS } from '@/lib/fileProcessing/constants';
+import { CATEGORY_IDS } from '@/lib/constants/constants';
 import { DashboardStats } from '@/types/stats';
 
 export function useTransactionStats(transactions: Transaction[]): DashboardStats {
