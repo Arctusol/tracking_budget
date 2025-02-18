@@ -8,6 +8,7 @@ import { useBudgetAnalysis } from "@/hooks/useBudgetAnalysis";
 import { formatCurrency } from "@/lib/utils";
 import { format, subMonths } from "date-fns";
 import { BudgetComparison } from "./BudgetComparison";
+import { ExportButton } from "@/components/common/ExportButton";
 
 interface BudgetPlannerProps {
   transactions: Transaction[];
@@ -144,11 +145,40 @@ export function BudgetPlanner({ transactions }: BudgetPlannerProps) {
     );
   };
 
+  const prepareExportData = () => {
+    return Object.entries(displayBudget.categories).flatMap(([mainCategory, category]) => {
+      const mainCategoryRow = {
+        Catégorie: CATEGORY_NAMES[mainCategory],
+        "Moyenne 6 mois": Object.values(category.subCategories).reduce((sum, sub) => sum + sub.average6Months, 0),
+        "Moyenne 3 mois": Object.values(category.subCategories).reduce((sum, sub) => sum + sub.average3Months, 0),
+        "Mois précédent": Object.values(category.subCategories).reduce((sum, sub) => sum + sub.previousMonth, 0),
+        "Budget estimé": category.totalEstimated,
+        "Budget ajusté": category.totalAdjusted || category.totalEstimated,
+      };
+
+      const subCategoryRows = Object.entries(category.subCategories).map(([subCategoryId, estimate]) => ({
+        Catégorie: `  ${CATEGORY_NAMES[subCategoryId]}`,
+        "Moyenne 6 mois": estimate.average6Months,
+        "Moyenne 3 mois": estimate.average3Months,
+        "Mois précédent": estimate.previousMonth,
+        "Budget estimé": estimate.estimatedAmount,
+        "Budget ajusté": estimate.adjustedAmount || estimate.estimatedAmount,
+      }));
+
+      return [mainCategoryRow, ...subCategoryRows];
+    });
+  };
+
   return (
     <div className="space-y-6">
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Budget Prévisionnel - {displayBudget.month}</CardTitle>
+          <ExportButton
+            data={prepareExportData()}
+            filename={`budget-${displayBudget.month}`}
+            variant="outline"
+          />
         </CardHeader>
         <CardContent>
           <Table>

@@ -4,7 +4,8 @@ import { useAuth } from "@/lib/auth";
 import { DashboardFilters, FilterOptions } from "@/components/dashboard/DashboardFilters";
 import { TransactionEditTable } from "@/components/transactions/TransactionEditTable";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { CATEGORY_HIERARCHY, getParentCategory } from "@/lib/fileProcessing/constants";
+import { CATEGORY_HIERARCHY, CATEGORY_NAMES, getParentCategory } from "@/lib/fileProcessing/constants";
+import { ExportButton } from "@/components/common/ExportButton";
 
 interface Transaction {
   id: string;
@@ -102,24 +103,38 @@ export default function TransactionsPage() {
     return Array.from(usedCategoryIds);
   }, [transactions]);
 
+  // Préparer les données pour l'export
+  const exportData = useMemo(() => {
+    return filteredTransactions.map(transaction => ({
+      Date: new Date(transaction.date).toLocaleDateString(),
+      Description: transaction.description,
+      Amount: transaction.amount,
+      Type: transaction.type,
+      Category: transaction.category_id ? CATEGORY_NAMES[transaction.category_id] : "",
+      "Parent Category": transaction.category_id ? CATEGORY_NAMES[getParentCategory(transaction.category_id) || ""] : ""
+    }));
+  }, [filteredTransactions]);
+
   return (
-    <div className="container mx-auto py-6 space-y-6">
+    <div className="container mx-auto py-10 space-y-4">
       <Card>
-        <CardHeader>
-          <CardTitle>Édition des Transactions</CardTitle>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle>Transactions</CardTitle>
+          <ExportButton 
+            data={exportData}
+            filename={`transactions_${new Date().toISOString().split("T")[0]}`}
+          />
         </CardHeader>
         <CardContent>
-          <div className="space-y-6">
-            <DashboardFilters 
-              filters={filters} 
-              onFilterChange={handleFilterChange} 
-              usedCategories={getUsedCategories}
-            />
-            <TransactionEditTable 
-              transactions={filteredTransactions} 
-              onTransactionUpdated={fetchTransactions} 
-            />
-          </div>
+          <DashboardFilters 
+            filters={filters} 
+            onFilterChange={handleFilterChange} 
+            usedCategories={getUsedCategories}
+          />
+          <TransactionEditTable 
+            transactions={filteredTransactions} 
+            onTransactionUpdated={fetchTransactions} 
+          />
         </CardContent>
       </Card>
     </div>
