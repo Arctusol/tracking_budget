@@ -43,6 +43,7 @@ export interface ReceiptDiscount {
 }
 
 export interface ReceiptItem {
+  id?: string;
   description: string;
   quantity: number;
   price: number;
@@ -141,95 +142,156 @@ export async function analyzeReceipt(file: File): Promise<ReceiptData | null> {
 
     // Extract items from the table structure
     const items: ReceiptItem[] = [];
+    const discounts: ReceiptDiscount[] = [];
     let total = 0;
 
-    // Find the main items table (usually the first one with multiple rows)
-    const itemsTable = analyzeResult.tables?.find((table: any) => {
-      console.log("Table found:", {
-        rowCount: table.rowCount,
-        columnCount: table.columnCount,
-        cells: table.cells?.length
-      });
-      return table.cells?.length > 0;
-    });
+    // Process all tables from the document
+    if (analyzeResult.tables && analyzeResult.tables.length > 0) {
+      console.log(`Processing ${analyzeResult.tables.length} tables...`);
 
-    console.log("Main table found:", itemsTable ? "yes" : "no");
+      let isAfterTotal = false; // Flag pour indiquer si on a dépassé la section des articles
 
-    if (itemsTable) {
-      console.log("Processing table with", itemsTable.cells.length, "cells");
-      
-      // Group cells by row
-      const cellsByRow = itemsTable.cells.reduce((acc: any, cell: any) => {
-        if (!acc[cell.rowIndex]) {
-          acc[cell.rowIndex] = [];
-        }
-        acc[cell.rowIndex].push(cell);
-        return acc;
-      }, {});
-
-      // Process each row
-      Object.entries(cellsByRow).forEach(([rowIndex, cells]: [string, any[]]) => {
-        console.log("Processing row", rowIndex, "with cells:", cells.length);
-
-        // Find description and price cells
-        const descriptionCell = cells.find(cell => 
-          cell.columnIndex === 0 && 
-          cell.content && 
-          !cell.content.toLowerCase().includes('montant') && 
-          !cell.content.toLowerCase().includes('total') &&
-          !cell.content.toLowerCase().includes('remise') &&
-          !cell.content.toLowerCase().includes('especes')
-        );
+      for (const table of analyzeResult.tables) {
+        console.log("Processing table with", table.cells.length, "cells");
         
-        // Recherche plus flexible des prix
-        const priceCell = cells.find(cell => {
-          const content = cell.content?.trim();
-          // Vérifie si la cellule contient un prix avec EUR (suivi ou non de A/B/C)
-          return content?.match(/\d+[.,]\d+\s*EUR(\s+[A-Z])?/);
-        });
+        // Group cells by row
+        const cellsByRow = table.cells.reduce((acc: any, cell: any) => {
+          if (!acc[cell.rowIndex]) {
+            acc[cell.rowIndex] = [];
+          }
+          acc[cell.rowIndex].push(cell);
+          return acc;
+        }, {});
 
-        console.log("Row cells found:", {
-          description: descriptionCell?.content,
-          price: priceCell?.content
-        });
+        // Process each row
+        Object.entries(cellsByRow).forEach(([rowIndex, cells]: [string, any[]]) => {
+          console.log("Processing row", rowIndex, "with cells:", cells.length);
 
-        if (descriptionCell?.content && priceCell?.content) {
-          const description = descriptionCell.content.trim();
-          // Extrait le prix avec une regex plus flexible
-          const priceMatch = priceCell.content.match(/(\d+[.,]\d+)\s*EUR/);
+          // Find description cell (usually first column)
+          const descriptionCell = cells.find(cell => 
+            cell.columnIndex === 0 && 
+            cell.content && 
+            !cell.content.toLowerCase().includes('montant') && 
+            !cell.content.toLowerCase().includes('total') &&
+            !cell.content.toLowerCase().includes('ticket') &&
+            !cell.content.toLowerCase().includes('article') &&
+            !cell.content.toLowerCase().includes('nombre de lignes')
+          );
+
+          if (!descriptionCell?.content) return;
           
-          if (priceMatch) {
-            const price = extractNumberFromString(priceMatch[1]);
-            // Vérifie que le prix est positif et raisonnable
-            if (price > 0 && price < 1000) { 
+          const description = descriptionCell.content.trim();
+          
+          // Vérifier si on a atteint la section des totaux
+          if (description.toLowerCase().includes('a payer') || 
+              description.toLowerCase().includes('total eligible') ||
+              description.toLowerCase().includes('carte') ||
+              description.toLowerCase().includes('tva') ||
+              description.toLowerCase().includes('cb')) {
+            isAfterTotal = true;
+            return;
+          }
+
+          // Skip if we're after the total section
+          if (isAfterTotal) return;
+
+          // Skip if this is already processed as a discount
+          if (discounts.some(d => d.description === description)) return;
+
+          // Find quantity cell (usually in the middle)
+          const quantityCell = cells.find(cell => {
+            const content = cell.content?.trim();
+            return content?.match(/^\d+$/); // Nombre entier uniquement
+          });
+
+          // Find price cells (look for currency patterns)
+          const priceCell = cells.find(cell => {
+            const content = cell.content?.trim();
+            return content?.match(/-?\d+[.,]\d+\s*(EUR?|€)?(\s+[A-Z])?/) || // Prix avec EUR ou € ou sans unité
+                   content?.match(/-?\d+[.,]\d+/); // Prix numérique simple
+          });
+
+          console.log("Row cells found:", {
+            description,
+            quantity: quantityCell?.content,
+            price: priceCell?.content
+          });
+
+          // Determine if this is a discount line
+          const isDiscount = description.toLowerCase().includes('remise') || 
+                           description.toLowerCase().includes('reduction') ||
+                           description.toLowerCase().includes('rem ') ||
+                           (priceCell?.content && priceCell.content.trim().startsWith('-'));
+
+          if (isDiscount) {
+            const amount = Math.abs(extractNumberFromString(priceCell?.content || '0'));
+            if (amount > 0) {
+              // Find the item this discount applies to
+              let itemDescription = description;
+              let itemIndex = -1;
+
+              if (description.toLowerCase().startsWith('rem ')) {
+                // Pour les remises "Rem X", on cherche l'article X
+                itemDescription = description.substring(4).trim();
+                itemIndex = items.findIndex(item => 
+                  item.description.toLowerCase().includes(itemDescription.toLowerCase())
+                );
+              } else if (description.toLowerCase().includes('reduction lidl plus')) {
+                // Pour les réductions Lidl Plus, on prend l'article précédent
+                // Vérifier qu'il y a au moins un article
+                if (items.length > 0) {
+                  itemIndex = items.length - 1;
+                  console.log(`Found previous item for Lidl Plus discount: ${items[itemIndex].description}`);
+                } else {
+                  console.log('No previous item found for Lidl Plus discount');
+                }
+              }
+
+              if (itemIndex !== -1 && itemIndex < items.length) {
+                // Update the item's discount
+                if (!items[itemIndex].discount) {
+                  items[itemIndex].discount = 0;
+                }
+                items[itemIndex].discount += amount;
+                items[itemIndex].originalTotal = items[itemIndex].total;
+                items[itemIndex].total = items[itemIndex].originalTotal - items[itemIndex].discount;
+                console.log(`Applied discount ${amount} to item ${items[itemIndex].description}. New total: ${items[itemIndex].total}`);
+              } else {
+                console.log(`Could not find item for discount: ${description}`);
+              }
+            }
+          } else {
+            const quantity = quantityCell ? parseInt(quantityCell.content) : 1;
+            const price = extractNumberFromString(priceCell?.content || '0');
+
+            if (price > 0 && price < 1000) {
               items.push({
                 description,
-                quantity: 1,
+                quantity,
                 price,
-                total: price,
+                total: price * quantity,
                 product_category_id: detectItemCategory(description)
               });
-              console.log("Added item:", { description, price });
+              console.log("Added item:", { description, quantity, price, total: price * quantity });
             } else {
-              console.log("Skipped item with invalid price:", { description, price });
+              console.log("Skipped item:", { description, price });
             }
           }
-        }
-      });
+        });
+      }
     }
 
-    // Find total amount and discounts
-    const discounts: ReceiptDiscount[] = [];
-    const totalKeywords = ['montant du', 'a payer', 'total', 'net a payer', 'total ttc'];
+    // Find total amount
+    const totalKeywords = ['montant du', 'cb', 'a payer', 'total', 'net a payer', 'total ttc', 'total €', 'total eur'];
     
     const totalLines = analyzeResult.pages?.[0]?.lines?.filter((line: any) => {
       const content = line.content?.toLowerCase() || '';
       return totalKeywords.some(keyword => content.includes(keyword)) ||
-             content.includes('remise') ||
-             content.includes('reduction');
+             content.match(/total.*\d+[.,]\d+/) ||
+             content.match(/a\s+payer.*\d+[.,]\d+/);
     }) || [];
 
-    console.log("Total and discount lines found:", totalLines.length);
+    console.log("Total lines found:", totalLines.length);
     
     totalLines.forEach((line: any) => {
       const content = line.content.toLowerCase();
@@ -238,19 +300,10 @@ export async function analyzeReceipt(file: File): Promise<ReceiptData | null> {
       if (amountMatch) {
         const amount = extractNumberFromString(amountMatch[1]);
         
-        if (content.includes('remise') || content.includes('reduction')) {
-          discounts.push({
-            description: line.content.split(/\d/)[0].trim(), // Prend le texte avant le montant
-            amount,
-            type: 'total'
-          });
-          console.log("Discount found:", { description: line.content, amount });
-        } else if (totalKeywords.some(keyword => content.includes(keyword))) {
-          // Prendre le montant le plus élevé comme total final
-          if (amount > total) {
-            total = amount;
-            console.log("Total amount updated:", total);
-          }
+        // Prendre le montant le plus élevé comme total final
+        if (amount > total) {
+          total = amount;
+          console.log("Total amount updated:", total);
         }
       }
     });
@@ -399,5 +452,46 @@ export async function getReceiptsByUser(user_id: string) {
   } catch (error) {
     console.error("Error fetching receipts:", error);
     throw error;
+  }
+}
+
+export async function editReceiptItem(
+  receiptId: string,
+  itemId: string,
+  updates: Partial<ReceiptItem>
+): Promise<ReceiptItem | null> {
+  try {
+    const { data, error } = await supabase
+      .from('receipt_items')
+      .update(updates)
+      .eq('id', itemId)
+      .eq('receipt_id', receiptId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error('Error updating receipt item:', error);
+    return null;
+  }
+}
+
+export async function deleteReceiptItem(
+  receiptId: string,
+  itemId: string
+): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('receipt_items')
+      .delete()
+      .eq('id', itemId)
+      .eq('receipt_id', receiptId);
+
+    if (error) throw error;
+    return true;
+  } catch (error) {
+    console.error('Error deleting receipt item:', error);
+    return false;
   }
 }

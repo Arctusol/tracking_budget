@@ -12,6 +12,8 @@ export const PRODUCT_CATEGORY_IDS = {
   SOFT_DRINKS: 'f6789012-3456-4789-abcd-ef0123456789',
   SNACKS: '01234567-89ab-4cde-f012-3456789abcde',
   PREPARED_MEALS: '89abcdef-0123-4456-7890-abcdef012345',
+  BAKERY: 'abcdef12-3456-4789-abcd-ef0123456789',
+  CEREALS_PASTA: 'bcdef123-4567-4890-bcde-f0123456789a',
   
   // Hygiène et Beauté
   HYGIENE: '12345678-90ab-4cde-f012-3456789abcde',
@@ -28,7 +30,13 @@ export const PRODUCT_CATEGORY_IDS = {
   HOME_DECORATION: '6789abcd-ef01-4234-5678-9abcdef01234',
 
   // Autre
-  OTHER: '789abcde-f012-4345-6789-abcdef012345'
+  OTHER: '789abcde-f012-4345-6789-abcdef012345',
+
+  BREAKFAST: 'cdef1234-5678-4901-cdef-012345678901',
+  CONDIMENTS: 'def12345-6789-4012-def0-123456789012',
+  CANNED_FOOD: 'ef123456-7890-4123-ef01-234567890123',
+  BABY: 'f1234567-8901-4234-f012-345678901234',
+  PET_SUPPLIES: '12345678-9012-4345-1234-567890123456'
 } as const;
 
 // Types d'items pour une meilleure autocomplétion
@@ -89,14 +97,14 @@ export const ITEM_CATEGORIES: ItemCategoryMap = {
 
   // Alimentation - Boissons
   ALCOHOL: {
-    keywords: ['vin', 'bière', 'whisky', 'rhum', 'vodka', 'ricard', 'goudale', 'champagne'],
+    keywords: ['vin', 'biere', 'whisky', 'rhum', 'vodka', 'ricard', 'goudale', 'champagne'],
     categoryId: CATEGORY_IDS.BAR,
     subType: 'alcohol',
     frenchName: 'Alcools',
     id: PRODUCT_CATEGORY_IDS.ALCOHOL
   },
   SOFT_DRINKS: {
-    keywords: ['coca', 'fanta', 'sprite', 'jus', 'eau', 'san pel', 'evian', 'vittel', 'perrier'],
+    keywords: ['coca', 'fanta', 'sprite', 'jus', 'eau', 'san pel', 'evian', 'vittel', 'perrier', 'thé', 'café', 'sirop', 'boisson énergétique', 'ice tea', 'capri-sun'],
     categoryId: CATEGORY_IDS.GROCERIES,
     subType: 'beverages',
     frenchName: 'Boissons',
@@ -105,7 +113,7 @@ export const ITEM_CATEGORIES: ItemCategoryMap = {
 
   // Alimentation - Snacks et Confiseries
   SNACKS: {
-    keywords: ['chips', 'cacahuète', 'biscuit', 'gâteau', 'chocolat', 'bonbon', 'friandise'],
+    keywords: ['chips', 'cacahuète', 'biscuit', 'gâteau', 'chocolat', 'bonbon', 'friandise', 'gaufre', 'barre céréale', 'pop corn', 'fruits secs', 'crackers'],
     categoryId: CATEGORY_IDS.GROCERIES,
     subType: 'snacks',
     frenchName: 'Snacks',
@@ -122,7 +130,7 @@ export const ITEM_CATEGORIES: ItemCategoryMap = {
 
   // Produits d'Hygiène et Beauté
   HYGIENE: {
-    keywords: ['savon', 'shampoing', 'dentifrice', 'brosse', 'déodorant', 'rasoir', 'coton'],
+    keywords: ['savon', 'shampoing', 'dentifrice', 'brosse', 'deodorant', 'rasoir', 'coton', 'papier hygiénique', 'mouchoir', 'gel douche', 'serviette hygiénique', 'tampon', 'lingette'],
     categoryId: CATEGORY_IDS.BEAUTY,
     subType: 'hygiene',
     frenchName: 'Hygiène',
@@ -176,6 +184,63 @@ export const ITEM_CATEGORIES: ItemCategoryMap = {
     categoryId: CATEGORY_IDS.OTHER,
     frenchName: 'Autre',
     id: PRODUCT_CATEGORY_IDS.OTHER
+  },
+
+  BAKERY: {
+    keywords: ['pain', 'baguette', 'croissant', 'brioche', 'pain de mie', 'viennoiserie', 'pain au chocolat'],
+    categoryId: CATEGORY_IDS.GROCERIES,
+    subType: 'bakery',
+    frenchName: 'Boulangerie',
+    id: PRODUCT_CATEGORY_IDS.BAKERY
+  },
+  
+  CEREALS_PASTA: {
+    keywords: ['farine', 'pâtes', 'riz', 'céréales', 'semoule', 'couscous', 'quinoa', 'boulgour', 'muesli'],
+    categoryId: CATEGORY_IDS.GROCERIES,
+    subType: 'cereals',
+    frenchName: 'Céréales et Pâtes',
+    id: PRODUCT_CATEGORY_IDS.CEREALS_PASTA
+  },
+
+  // Nouvelles catégories
+  BREAKFAST: {
+    keywords: ['confiture', 'miel', 'nutella', 'pâte à tartiner', 'sirop d\'érable', 'céréales petit-déjeuner', 'corn flakes', 'compote', 'chocolat en poudre', 'cacao', 'nesquik'],
+    categoryId: CATEGORY_IDS.GROCERIES,
+    subType: 'breakfast',
+    frenchName: 'Petit-déjeuner',
+    id: PRODUCT_CATEGORY_IDS.BREAKFAST
+  },
+
+  CONDIMENTS: {
+    keywords: ['ketchup', 'mayonnaise', 'moutarde', 'sauce', 'huile', 'vinaigre', 'sel', 'poivre', 'épice', 'herbe', 'curry', 'paprika', 'basilic', 'sauce soja', 'tabasco'],
+    categoryId: CATEGORY_IDS.GROCERIES,
+    subType: 'condiments',
+    frenchName: 'Condiments',
+    id: PRODUCT_CATEGORY_IDS.CONDIMENTS
+  },
+
+  CANNED_FOOD: {
+    keywords: ['conserve', 'thon en boîte', 'maïs', 'petit pois', 'haricot vert', 'cassoulet', 'ravioli en boîte', 'sauce tomate', 'concentré de tomate', 'sardine en boîte', 'macédoine'],
+    categoryId: CATEGORY_IDS.GROCERIES,
+    subType: 'canned',
+    frenchName: 'Conserves',
+    id: PRODUCT_CATEGORY_IDS.CANNED_FOOD
+  },
+
+  BABY: {
+    keywords: ['couche', 'lingette bébé', 'lait infantile', 'petit pot', 'biberon', 'puériculture', 'babyphone', 'tétine', 'petits suisses bébé', 'eau bébé'],
+    categoryId: CATEGORY_IDS.GROCERIES,
+    subType: 'baby',
+    frenchName: 'Bébé',
+    id: PRODUCT_CATEGORY_IDS.BABY
+  },
+
+  PET_SUPPLIES: {
+    keywords: ['croquette', 'pâtée', 'litière', 'jouet animal', 'accessoire animal', 'laisse', 'collier', 'gamelle', 'arbre à chat', 'os à mâcher'],
+    categoryId: CATEGORY_IDS.HOME,
+    subType: 'pets',
+    frenchName: 'Animalerie',
+    id: PRODUCT_CATEGORY_IDS.PET_SUPPLIES
   }
 };
 

@@ -49,6 +49,7 @@ const ReceiptProcessingPreview = ({
   onUpdateReceipt,
 }: ReceiptProcessingPreviewProps) => {
   const [showAddItemForm, setShowAddItemForm] = useState(false);
+  const [editingItem, setEditingItem] = useState<{ index: number; description: string } | null>(null);
 
   const handleAddItem = (newItem: ReceiptItem) => {
     if (!receipt || !onUpdateReceipt) return;
@@ -124,6 +125,37 @@ const ReceiptProcessingPreview = ({
     updatedReceipt.total = newTotal;
 
     onUpdateReceipt(updatedReceipt);
+  };
+
+  const handleDeleteItem = (index: number) => {
+    if (!receipt || !onUpdateReceipt) return;
+
+    const updatedReceipt = {
+      ...receipt,
+      items: receipt.items.filter((_, i) => i !== index)
+    };
+
+    // Recalculer les totaux
+    const calculatedTotal = updatedReceipt.items.reduce((sum, item) => sum + item.total, 0);
+    updatedReceipt.total = calculatedTotal;
+
+    onUpdateReceipt(updatedReceipt);
+  };
+
+  const handleEditDescription = (index: number, newDescription: string) => {
+    if (!receipt || !onUpdateReceipt) return;
+
+    const updatedReceipt = {
+      ...receipt,
+      items: receipt.items.map((item, i) => 
+        i === index 
+          ? { ...item, description: newDescription }
+          : item
+      )
+    };
+
+    onUpdateReceipt(updatedReceipt);
+    setEditingItem(null);
   };
 
   const calculatedTotal = receipt?.items.reduce((sum, item) => sum + item.total, 0) || 0;
@@ -304,12 +336,60 @@ const ReceiptProcessingPreview = ({
                           <TableHead>Total</TableHead>
                           <TableHead>Remise</TableHead>
                           <TableHead>Catégorie</TableHead>
+                          <TableHead>Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {receipt.items.map((item, index) => (
                           <TableRow key={index}>
-                            <TableCell>{item.description}</TableCell>
+                            <TableCell>
+                              {editingItem?.index === index ? (
+                                <div className="flex items-center space-x-2">
+                                  <Input
+                                    value={editingItem.description}
+                                    onChange={(e) => setEditingItem({ index, description: e.target.value })}
+                                    className="w-full"
+                                  />
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => handleEditDescription(index, editingItem.description)}
+                                  >
+                                    <CheckCircle2 className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => setEditingItem(null)}
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              ) : (
+                                <div className="flex items-center space-x-2">
+                                  <span>{item.description}</span>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => setEditingItem({ index, description: item.description })}
+                                  >
+                                    <svg
+                                      xmlns="http://www.w3.org/2000/svg"
+                                      width="15"
+                                      height="15"
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeWidth="2"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                    >
+                                      <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
+                                    </svg>
+                                  </Button>
+                                </div>
+                              )}
+                            </TableCell>
                             <TableCell>{item.quantity}</TableCell>
                             <TableCell>
                               {new Intl.NumberFormat("fr-FR", {
@@ -318,7 +398,7 @@ const ReceiptProcessingPreview = ({
                               }).format(item.price)}
                             </TableCell>
                             <TableCell>
-                              <div className="flex items-center space-x-2">
+                              <div className="flex items-center justify-between">
                                 <span className={item.discount ? "line-through text-gray-500" : ""}>
                                   {item.total.toFixed(2)} €
                                 </span>
@@ -375,6 +455,18 @@ const ReceiptProcessingPreview = ({
                                   onCategoryDetected={(category) => handleUpdateCategory(index, category)}
                                   type="product"
                                 />
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center space-x-2">
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="text-red-600 hover:text-red-800"
+                                  onClick={() => handleDeleteItem(index)}
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
                               </div>
                             </TableCell>
                           </TableRow>
