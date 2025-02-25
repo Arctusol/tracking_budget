@@ -1,6 +1,6 @@
 import DocumentIntelligence from "@azure-rest/ai-document-intelligence";
 import { getLongRunningPoller, isUnexpected } from "@azure-rest/ai-document-intelligence";
-import { ProcessedTransaction, AzureResponse } from "./types";
+import { ProcessedTransaction, AzureResponse, BankProcessor, AzureAnalyzeResult } from "./types";
 import { 
   DocumentAnalysisError,
   ConfigurationError,
@@ -11,175 +11,154 @@ import { detectCategory } from "./categoryDetection";
 import { extractMerchantFromDescription } from "./merchantExtraction";
 import { v4 as uuidv4 } from 'uuid';
 import { createBankStatement } from '../services/bank-statement.service';
+import bankProcessorFactory from './bankProcessorFactory';
+import boursobankProcessor from './boursobankProcessor';
 
-// Fonction pour extraire le nom du document et la date d'arrêté
-function extractDocumentInfo(pages: { lines?: { content?: string }[] }[]): { documentName: string; statementDate: string; statementNumber: string } {
-  let documentName = '';
-  let statementDate = '';
-  let statementNumber = '';
-  
-  for (const page of pages) {
-    for (const line of page.lines || []) {
-      const content = line.content || '';
-      
-      // Get the full document name from the first line that contains "Relevé de Compte"
-      if (content.includes('Relevé de Compte')) {
-        const fullLine = content.trim();
-        documentName = fullLine; // Keep the full line as document name
-      }
-      if (content.includes('Arrêté au')) {
-        statementDate = content.replace('Arrêté au', '').trim();
-      }
-      if (content.includes('Nº')) {
-        const match = content.match(/Nº\s*(\d+)/);
-        if (match) {
-          statementNumber = match[1];
-        }
-      }
-    }
-  }
-  
-  return { documentName, statementDate, statementNumber };
-}
-
-// Fonction pour extraire les soldes et calculer les totaux
-function extractBalanceInfo(pages: { lines?: { content?: string }[] }[]): { 
-  openingBalance: number;
-  closingBalance: number;
-  totalDebits: number;
-  totalCredits: number;
-  accountHolder: string;
-} {
-  let openingBalance = 0;
-  let closingBalance = 0;
-  let totalDebits = 0;
-  let totalCredits = 0;
-  let accountHolder = '';
-
-  for (const page of pages) {
-    for (const line of page.lines || []) {
-      const content = line.content || '';
-      
-      // Extraction du solde initial (ANCIEN SOLDE CRÉDITEUR)
-      if (content.includes('ANCIEN SOLDE')) {
-        const match = content.match(/([0-9]+[.,][0-9]{2})\s*€/);
-        if (match) {
-          openingBalance = parseFloat(match[1].replace(',', '.'));
-          console.log("Found opening balance:", openingBalance);
-        }
-      }
-      
-      // Extraction du nouveau solde (NOUVEAU SOLDE CRÉDITEUR)
-      if (content.includes('NOUVEAU SOLDE')) {
-        const match = content.match(/([0-9]+[.,][0-9]{2})\s*€/);
-        if (match) {
-          closingBalance = parseFloat(match[1].replace(',', '.'));
-          console.log("Found closing balance:", closingBalance);
-        }
-      }
-
-      // Extraction des totaux
-      if (content.includes('TOTAL DES OPÉRATIONS')) {
-        const debitsMatch = content.match(/Débit\s*([0-9]+[.,][0-9]{2})/);
-        const creditsMatch = content.match(/Crédit\s*([0-9]+[.,][0-9]{2})/);
+// Classe qui implémente le processeur standard (banque originale - Fortuneo)
+class StandardPdfProcessor implements BankProcessor {
+  // Fonction pour extraire le nom du document et la date d'arrêté
+  private extractDocumentInfo(pages: { lines?: { content?: string }[] }[]): { documentName: string; statementDate: string; statementNumber: string } {
+    let documentName = '';
+    let statementDate = '';
+    let statementNumber = '';
+    
+    for (const page of pages) {
+      for (const line of page.lines || []) {
+        const content = line.content || '';
         
-        if (debitsMatch) {
-          totalDebits = parseFloat(debitsMatch[1].replace(',', '.'));
+        // Get the full document name from the first line that contains "Relevé de Compte"
+        if (content.includes('Relevé de Compte')) {
+          const fullLine = content.trim();
+          documentName = fullLine; // Keep the full line as document name
         }
-        if (creditsMatch) {
-          totalCredits = parseFloat(creditsMatch[1].replace(',', '.'));
+        if (content.includes('Arrêté au')) {
+          statementDate = content.replace('Arrêté au', '').trim();
+        }
+        if (content.includes('Nº')) {
+          const match = content.match(/Nº\s*(\d+)/);
+          if (match) {
+            statementNumber = match[1];
+          }
         }
       }
-
-      // Extraction du titulaire
-      if (content.includes('Titulaire(s) du compte :')) {
-        accountHolder = content.replace('Titulaire(s) du compte :', '').trim();
-        console.log("Found account holder:", accountHolder);
-      }
     }
-  }
-
-  return { 
-    openingBalance, 
-    closingBalance,
-    totalDebits,
-    totalCredits,
-    accountHolder
-  };
-}
-
-// Helper function to convert French date to ISO format
-function convertFrenchDateToISO(frenchDate: string): string {
-  const monthMap: { [key: string]: string } = {
-    'janvier': '01', 'février': '02', 'mars': '03', 'avril': '04',
-    'mai': '05', 'juin': '06', 'juillet': '07', 'août': '08',
-    'septembre': '09', 'octobre': '10', 'novembre': '11', 'décembre': '12'
-  };
-
-  const parts = frenchDate.toLowerCase().split(' ');
-  if (parts.length !== 3) {
-    throw new Error(`Invalid date format: ${frenchDate}`);
-  }
-
-  const day = parts[0].padStart(2, '0');
-  const month = monthMap[parts[1]];
-  const year = parts[2];
-
-  if (!month) {
-    throw new Error(`Invalid month in date: ${frenchDate}`);
-  }
-
-  return `${year}-${month}-${day}`;
-}
-
-export async function processPDF(file: File): Promise<ProcessedTransaction[]> {
-  if (!file) {
-    throw new DocumentProcessingError("No file provided");
-  }
-
-  try {
-    const fileBuffer = await file.arrayBuffer();
-    const base64Data = btoa(String.fromCharCode(...new Uint8Array(fileBuffer)));
-
-    const endpoint = import.meta.env.VITE_AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT;
-    const key = import.meta.env.VITE_AZURE_DOCUMENT_INTELLIGENCE_KEY;
-
-    if (!endpoint || !key) {
-      throw new ConfigurationError("Azure Document Intelligence credentials not configured");
-    }
-
-    const client = DocumentIntelligence(endpoint, { key });
-
-    const initialResponse = await client
-      .path("/documentModels/{modelId}:analyze", "prebuilt-layout")
-      .post({
-        contentType: "application/json",
-        body: {
-          base64Source: base64Data
-        }
-      });
-
-    if (isUnexpected(initialResponse)) {
-      throw initialResponse.body.error;
-    }
-
-    const poller = getLongRunningPoller(client, initialResponse);
-    console.log("Waiting for Azure analysis to complete...");
-    const result = await poller.pollUntilDone();
-    console.log("Azure analysis completed", result);
     
-    if (!result.body || typeof result.body !== 'object' || !('analyzeResult' in result.body)) {
-      console.error("Invalid response format:", result.body);
-      throw new ExtractError("Invalid response format from Azure");
+    return { documentName, statementDate, statementNumber };
+  }
+
+  // Fonction pour extraire les soldes et calculer les totaux
+  private extractBalanceInfo(pages: { lines?: { content?: string }[] }[]): { 
+    openingBalance: number;
+    closingBalance: number;
+    totalDebits: number;
+    totalCredits: number;
+    accountHolder: string;
+  } {
+    let openingBalance = 0;
+    let closingBalance = 0;
+    let totalDebits = 0;
+    let totalCredits = 0;
+    let accountHolder = '';
+
+    for (const page of pages) {
+      for (const line of page.lines || []) {
+        const content = line.content || '';
+        
+        // Extraction du solde initial (ANCIEN SOLDE CRÉDITEUR)
+        if (content.includes('ANCIEN SOLDE')) {
+          const match = content.match(/([0-9]+[.,][0-9]{2})\s*€/);
+          if (match) {
+            openingBalance = parseFloat(match[1].replace(',', '.'));
+            console.log("Found opening balance:", openingBalance);
+          }
+        }
+        
+        // Extraction du nouveau solde (NOUVEAU SOLDE CRÉDITEUR)
+        if (content.includes('NOUVEAU SOLDE')) {
+          const match = content.match(/([0-9]+[.,][0-9]{2})\s*€/);
+          if (match) {
+            closingBalance = parseFloat(match[1].replace(',', '.'));
+            console.log("Found closing balance:", closingBalance);
+          }
+        }
+
+        // Extraction des totaux
+        if (content.includes('TOTAL DES OPÉRATIONS')) {
+          const debitsMatch = content.match(/Débit\s*([0-9]+[.,][0-9]{2})/);
+          const creditsMatch = content.match(/Crédit\s*([0-9]+[.,][0-9]{2})/);
+          
+          if (debitsMatch) {
+            totalDebits = parseFloat(debitsMatch[1].replace(',', '.'));
+          }
+          if (creditsMatch) {
+            totalCredits = parseFloat(creditsMatch[1].replace(',', '.'));
+          }
+        }
+
+        // Extraction du titulaire
+        if (content.includes('Titulaire(s) du compte :')) {
+          accountHolder = content.replace('Titulaire(s) du compte :', '').trim();
+          console.log("Found account holder:", accountHolder);
+        }
+      }
     }
 
-    const analyzeResult = result.body.analyzeResult as {
-      pages?: { lines?: { content?: string }[] }[];
-      tables?: { cells: { rowIndex: number; columnIndex: number; content?: string }[] }[];
+    return { 
+      openingBalance, 
+      closingBalance,
+      totalDebits,
+      totalCredits,
+      accountHolder
     };
+  }
+
+  // Helper function to convert French date to ISO format
+  private convertFrenchDateToISO(frenchDate: string): string {
+    const monthMap: { [key: string]: string } = {
+      'janvier': '01', 'février': '02', 'mars': '03', 'avril': '04',
+      'mai': '05', 'juin': '06', 'juillet': '07', 'août': '08',
+      'septembre': '09', 'octobre': '10', 'novembre': '11', 'décembre': '12'
+    };
+
+    const parts = frenchDate.toLowerCase().split(' ');
+    if (parts.length !== 3) {
+      throw new Error(`Invalid date format: ${frenchDate}`);
+    }
+
+    const day = parts[0].padStart(2, '0');
+    const month = monthMap[parts[1]];
+    const year = parts[2];
+
+    if (!month) {
+      throw new Error(`Invalid month in date: ${frenchDate}`);
+    }
+
+    return `${year}-${month}-${day}`;
+  }
+
+  // Méthode pour vérifier si c'est le processeur adapté pour ce document
+  isSupportedBank(analyzeResult: AzureAnalyzeResult): boolean {
+    if (!analyzeResult.pages || analyzeResult.pages.length === 0) {
+      return false;
+    }
+
+    // Recherche des marqueurs spécifiques à la banque standard
+    for (const page of analyzeResult.pages) {
+      for (const line of page.lines || []) {
+        const content = line.content || '';
+        // Marqueurs spécifiques
+        if (content.includes('ANCIEN SOLDE CRÉDITEUR') || content.includes('NOUVEAU SOLDE CRÉDITEUR')) {
+          return true;
+        }
+      }
+    }
     
+    // Par défaut, c'est le processeur standard
+    return false;
+  }
+
+  async process(analyzeResult: AzureAnalyzeResult): Promise<ProcessedTransaction[]> {
     if (!analyzeResult) {
-      console.error("No analyze result in response");
       throw new ExtractError("No analyze result in response");
     }
     
@@ -205,8 +184,8 @@ export async function processPDF(file: File): Promise<ProcessedTransaction[]> {
 
     // Extraire les informations du document
     console.log("Extracting document metadata...");
-    const { documentName, statementDate, statementNumber } = extractDocumentInfo(azureResponse.analyzeResult.pages || []);
-    const { openingBalance, closingBalance, accountHolder, totalDebits: extractedDebits, totalCredits: extractedCredits } = extractBalanceInfo(azureResponse.analyzeResult.pages || []);
+    const { documentName, statementDate, statementNumber } = this.extractDocumentInfo(azureResponse.analyzeResult.pages || []);
+    const { openingBalance, closingBalance, accountHolder, totalDebits: extractedDebits, totalCredits: extractedCredits } = this.extractBalanceInfo(azureResponse.analyzeResult.pages || []);
 
     // Mise à jour des variables
     numeroReleve = statementNumber;
@@ -383,7 +362,7 @@ export async function processPDF(file: File): Promise<ProcessedTransaction[]> {
     const bankStatement = await createBankStatement({
       document_name: documentName,
       statement_number: numeroReleve,
-      statement_date: convertFrenchDateToISO(statementDate),
+      statement_date: this.convertFrenchDateToISO(statementDate),
       account_holder: titulaire,
       opening_balance: openingBalance,
       closing_balance: closingBalance,
@@ -405,6 +384,93 @@ export async function processPDF(file: File): Promise<ProcessedTransaction[]> {
     });
 
     return transactions;
+  }
+
+  // Cette méthode est maintenue pour compatibilité avec l'interface BankProcessor
+  async processPDF(file: File): Promise<ProcessedTransaction[]> {
+    throw new Error('Cette méthode ne devrait plus être utilisée directement. Utilisez process() à la place.');
+  }
+}
+
+// Instance du processeur standard
+const standardPdfProcessor = new StandardPdfProcessor();
+
+// Nouvelle implémentation pour Boursobank
+class BoursobankAdapter {
+  async process(analyzeResult: AzureAnalyzeResult): Promise<ProcessedTransaction[]> {
+    return boursobankProcessor.processAnalyzedResult(analyzeResult);
+  }
+}
+
+const boursobankAdapter = new BoursobankAdapter();
+
+// Fonction principale qui utilise la factory pour traiter le PDF
+export async function processPDF(file: File, bankType?: string): Promise<ProcessedTransaction[]> {
+  if (!file) {
+    throw new DocumentProcessingError("No file provided");
+  }
+
+  try {
+    const fileBuffer = await file.arrayBuffer();
+    const base64Data = btoa(String.fromCharCode(...new Uint8Array(fileBuffer)));
+
+    const endpoint = import.meta.env.VITE_AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT;
+    const key = import.meta.env.VITE_AZURE_DOCUMENT_INTELLIGENCE_KEY;
+
+    if (!endpoint || !key) {
+      throw new ConfigurationError("Azure Document Intelligence credentials not configured");
+    }
+
+    const client = DocumentIntelligence(endpoint, { key });
+
+    const initialResponse = await client
+      .path("/documentModels/{modelId}:analyze", "prebuilt-layout")
+      .post({
+        contentType: "application/json",
+        body: {
+          base64Source: base64Data
+        }
+      });
+
+    if (isUnexpected(initialResponse)) {
+      throw initialResponse.body.error;
+    }
+
+    const poller = getLongRunningPoller(client, initialResponse);
+    console.log("Waiting for Azure analysis to complete...");
+    const result = await poller.pollUntilDone();
+    console.log("Azure analysis completed", result);
+    
+    if (!result.body || typeof result.body !== 'object' || !('analyzeResult' in result.body)) {
+      console.error("Invalid response format:", result.body);
+      throw new ExtractError("Invalid response format from Azure");
+    }
+
+    const analyzeResult = result.body.analyzeResult as AzureAnalyzeResult;
+    
+    if (!analyzeResult) {
+      console.error("No analyze result in response");
+      throw new ExtractError("No analyze result in response");
+    }
+
+    // Sélection du processeur en fonction du choix de l'utilisateur
+    if (bankType === 'fortuneo') {
+      console.log("Utilisation du processeur Fortuneo (standard)");
+      return await standardPdfProcessor.process(analyzeResult);
+    } else if (bankType === 'boursobank') {
+      console.log("Utilisation du processeur Boursobank");
+      return await boursobankAdapter.process(analyzeResult);
+    } else {
+      // Détection automatique
+      console.log("Détection automatique de la banque...");
+      if (boursobankProcessor.isSupportedBank(analyzeResult)) {
+        console.log("Format Boursobank détecté");
+        return await boursobankAdapter.process(analyzeResult);
+      } else {
+        console.log("Format standard (Fortuneo) détecté ou par défaut");
+        return await standardPdfProcessor.process(analyzeResult);
+      }
+    }
   } catch (error) {
     console.error("Error processing PDF:", error);
     throw new DocumentProcessingError("Failed to process PDF document");

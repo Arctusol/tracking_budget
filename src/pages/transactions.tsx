@@ -17,6 +17,7 @@ interface Transaction {
   created_by: string;
   shared_with?: string[];
   split_type?: string;
+  group_id?: string;
 }
 
 export default function TransactionsPage() {
@@ -26,6 +27,7 @@ export default function TransactionsPage() {
     search: "",
     category: "all",
     period: "all",
+    groupFilter: "all",
   });
   const { user } = useAuth();
 
@@ -34,7 +36,16 @@ export default function TransactionsPage() {
 
     const { data: transactionsData, error: transactionsError } = await supabase
       .from("transactions")
-      .select("*")
+      .select(`
+        id,
+        amount,
+        type,
+        description,
+        date,
+        category_id,
+        created_by,
+        group_id
+      `)
       .order("date", { ascending: false });
 
     if (transactionsError) {
@@ -59,6 +70,16 @@ export default function TransactionsPage() {
       filtered = filtered.filter(
         (t) => t.description.toLowerCase().includes(searchLower)
       );
+    }
+
+    if (currentFilters.groupFilter && currentFilters.groupFilter !== 'all') {
+      filtered = filtered.filter((t) => {
+        if (currentFilters.groupFilter === 'grouped') {
+          return t.group_id !== null;
+        } else {
+          return t.group_id === null;
+        }
+      });
     }
 
     if (currentFilters.category && currentFilters.category !== "all") {

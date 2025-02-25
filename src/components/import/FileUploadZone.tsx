@@ -23,7 +23,13 @@ interface FileUploadZoneProps {
 
 const FileUploadZone = ({
   onFileSelect = () => {},
-  accept = { "image/*": [".jpg", ".png", ".jpeg"], "text/csv": [".csv"] },
+  accept = { 
+    "image/*": [".jpg", ".png", ".jpeg"], 
+    "text/csv": [".csv"],
+    "application/pdf": [".pdf"],
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"],
+    "application/vnd.ms-excel": [".xls"]
+  },
   maxFiles = 10,
   maxSize = 10 * 1024 * 1024, // 10MB par défaut
   children,
@@ -124,7 +130,7 @@ const FileUploadZone = ({
                 <Upload className="h-6 w-6 text-primary" />
               </div>
               <h3 className="mb-1 text-lg font-medium">
-                Déposez votre ticket de caisse ici
+                Déposez votre fichier ici
               </h3>
               <p className="text-sm text-gray-800">
                 ou cliquez pour sélectionner un fichier
@@ -137,16 +143,16 @@ const FileUploadZone = ({
                 <div className="flex items-center gap-2 text-sm text-gray-800">
                   <FileType className="w-4 h-4" />
                   <span>
-                    Accepted formats:{" "}
-                    {Object.values(accept)
-                      .flat()
-                      .map((type) => type.replace(/^\./, ""))
-                      .join(", ")}
+                    Formats acceptés: PDF, CSV, Excel, Images
                   </span>
                 </div>
               </TooltipTrigger>
               <TooltipContent>
-                <p>Maximum file size: {maxSize / 1024 / 1024}MB</p>
+                <p>Taille maximale: {maxSize / 1024 / 1024}MB</p>
+                <p>Formats: {Object.values(accept)
+                      .flat()
+                      .map((type) => type.replace(/^\./, ""))
+                      .join(", ")}</p>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
@@ -156,7 +162,7 @@ const FileUploadZone = ({
           <div className="absolute bottom-4 left-4 right-4">
             <Progress value={uploadProgress} className="h-2" />
             <p className="text-sm text-center mt-2">
-              Uploading... {uploadProgress}%
+              Traitement en cours... {uploadProgress}%
             </p>
           </div>
         )}

@@ -17,6 +17,8 @@ export interface ProcessedTransaction extends Omit<Transaction, 'created_by' | '
     solde_ancien?: string;
     solde_nouveau?: string;
     bank_statement_id?: string;
+    debit_amount?: string;
+    original_description?: string;
   };
 }
 
@@ -60,4 +62,9 @@ export interface AzureAnalyzeResult {
 
 export interface AzureResponse {
   analyzeResult: AzureAnalyzeResult;
+}
+
+export interface BankProcessor {
+  processPDF(file: File): Promise<ProcessedTransaction[]>;
+  isSupportedBank(analyzeResult: AzureAnalyzeResult): boolean;
 }

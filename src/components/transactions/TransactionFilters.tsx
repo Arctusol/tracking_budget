@@ -153,6 +153,23 @@ export function TransactionFilters({ categories, onFiltersChange }: TransactionF
       </div>
 
       <div className="space-y-2">
+        <Label>Groupe</Label>
+        <Select
+          value={filters.groupFilter || 'all'}
+          onValueChange={(value) => handleFilterChange('groupFilter', value)}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Tous les groupes" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Toutes les transactions</SelectItem>
+            <SelectItem value="grouped">En groupe</SelectItem>
+            <SelectItem value="ungrouped">Hors groupe</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="space-y-2">
         <Label>Rechercher</Label>
         <Input
           type="text"

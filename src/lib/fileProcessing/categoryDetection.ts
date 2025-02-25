@@ -204,7 +204,6 @@ export function detectCategory(description: string, amount: number): string | un
     if (hasExactKeyword(['salaire'])) return CATEGORY_IDS.SALARY;
     if (hasExactKeyword(['freelance'])) return CATEGORY_IDS.FREELANCE;
     if (hasExactKeyword(['remboursement'])) return CATEGORY_IDS.REIMBURSEMENTS;
-    return CATEGORY_IDS.INCOME;
   }
 
   // Si aucune catégorie n'a été trouvée

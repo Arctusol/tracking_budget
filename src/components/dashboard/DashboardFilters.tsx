@@ -16,6 +16,7 @@ export interface FilterOptions {
   period: string;
   startDate?: Date;
   endDate?: Date;
+  groupFilter?: 'all' | 'grouped' | 'ungrouped';
 }
 
 interface DashboardFiltersProps {
@@ -150,6 +151,19 @@ export function DashboardFilters({ onFilterChange, filters, usedCategories }: Da
               <SelectItem value="last-month">Mois dernier</SelectItem>
               <SelectItem value="last-3-months">3 derniers mois</SelectItem>
               <SelectItem value="this-year">Cette année</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select 
+            value={filters.groupFilter || 'all'}
+            onValueChange={(value) => onFilterChange({ ...filters, groupFilter: value as 'all' | 'grouped' | 'ungrouped' })}
+          >
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Groupe" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Toutes les transactions</SelectItem>
+              <SelectItem value="grouped">En groupe</SelectItem>
+              <SelectItem value="ungrouped">Hors groupe</SelectItem>
             </SelectContent>
           </Select>
         </div>

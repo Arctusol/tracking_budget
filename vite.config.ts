@@ -1,7 +1,6 @@
 import path from "path";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
-import { tempo } from "tempo-devtools/dist/vite";
 
 const conditionalPlugins: [string, Record<string, any>][] = [];
 
@@ -20,8 +19,22 @@ export default defineConfig({
     react({
       plugins: conditionalPlugins,
     }),
-    tempo(),
   ],
+  build: {
+    chunkSizeWarningLimit: 1000,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: [
+            'react',
+            'react-dom',
+            'react-router-dom',
+          ],
+          // Add other common dependencies here
+        },
+      },
+    },
+  },
   resolve: {
     preserveSymlinks: true,
     alias: {
@@ -45,13 +58,4 @@ export default defineConfig({
       usePolling: false,
     },
   },
-  build: {
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          pdfjs: ['pdfjs-dist']
-        }
-      }
-    }
-  }
 });

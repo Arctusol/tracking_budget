@@ -45,4 +45,5 @@ export type TransactionFilters = {
   maxAmount?: number;
   searchQuery?: string;
   merchant?: string;
+  groupFilter?: 'all' | 'grouped' | 'ungrouped';
 };

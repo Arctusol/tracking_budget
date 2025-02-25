@@ -15,6 +15,7 @@ import {
 import { supabase } from "@/lib/supabase";
 import { storeTransactions as saveTransactions } from "@/lib/services/transaction.service";
 import { createImportRecord, updateImportRecord } from "@/lib/services/import.service";
+import BankSelectionDialog from "@/lib/fileProcessing/BankSelectionDialog";
 
 export interface ImportContainerProps {
   onClose?: () => void;
@@ -28,38 +29,36 @@ export default function ImportContainer({ onClose }: ImportContainerProps) {
   const [currentStatement, setCurrentStatement] =
     useState<BankStatement | null>(null);
   const { toast } = useToast();
+  
+  // États pour la sélection de banque
+  const [showBankSelection, setShowBankSelection] = useState<boolean>(false);
+  const [currentFile, setCurrentFile] = useState<File | null>(null);
 
-  const handleFileSelect = async (files: File[]) => {
+  const processFileWithBank = async (file: File, bankType?: string) => {
     setIsProcessing(true);
     setError("");
-    setProgress(0);
+    setProgress(10);
 
     try {
-      // Traiter chaque fichier
-      for (const file of files) {
-        console.log("Processing file:", file.name, "type:", file.type);
-        setProgress(10);
+      // Traiter le fichier avec le type de banque sélectionné
+      const result = await processFile(file, bankType);
+      console.log("File processing result:", result);
+      setProgress(70);
 
-        // Traiter le fichier
-        const result = await processFile(file);
-        console.log("File processing result:", result);
-        setProgress(70);
-
-        if (!result || result.length === 0) {
-          throw new Error("Aucune transaction n'a été trouvée dans le fichier");
-        }
-
-        // Mettre à jour les transactions
-        setTransactions(result);
-        setProgress(100);
-
-        toast({
-          title: "Fichier traité avec succès",
-          description: `${result.length} transactions ont été extraites.`,
-        });
+      if (!result || result.length === 0) {
+        throw new Error("Aucune transaction n'a été trouvée dans le fichier");
       }
+
+      // Mettre à jour les transactions
+      setTransactions(result);
+      setProgress(100);
+
+      toast({
+        title: "Fichier traité avec succès",
+        description: `${result.length} transactions ont été extraites.`,
+      });
     } catch (err) {
-      console.error("Error in handleFileSelect:", err);
+      console.error("Error in processFileWithBank:", err);
       let errorMessage =
         "Une erreur est survenue lors du traitement du fichier";
       let errorDetails = "";
@@ -96,6 +95,41 @@ export default function ImportContainer({ onClose }: ImportContainerProps) {
       });
     } finally {
       setIsProcessing(false);
+      setCurrentFile(null);
+    }
+  };
+
+  const handleFileSelect = async (files: File[]) => {
+    if (files.length === 0) return;
+
+    const file = files[0]; // Nous ne prenons que le premier fichier
+    console.log("Selected file:", file.name, "type:", file.type);
+
+    if (file.type === "application/pdf" || file.name.toLowerCase().endsWith('.pdf')) {
+      // Ouvrir la boîte de dialogue de sélection de banque pour les PDF
+      setCurrentFile(file);
+      setShowBankSelection(true);
+    } else {
+      // Pour les autres types, traiter directement
+      processFileWithBank(file);
+    }
+  };
+
+  const handleBankSelect = (bankType: string) => {
+    if (currentFile) {
+      console.log("Banque sélectionnée:", bankType);
+      // Fermer d'abord la boîte de dialogue
+      setShowBankSelection(false);
+      // Puis traiter le fichier avec la banque sélectionnée
+      processFileWithBank(currentFile, bankType);
+    } else {
+      console.error("Aucun fichier sélectionné pour l'analyse");
+      toast({
+        variant: "destructive",
+        title: "Erreur",
+        description: "Aucun fichier sélectionné pour l'analyse",
+      });
+      setShowBankSelection(false);
     }
   };
 
@@ -202,7 +236,9 @@ export default function ImportContainer({ onClose }: ImportContainerProps) {
           error={error}
           accept={{
             "text/csv": [".csv"],
-            "application/pdf": [".pdf"]
+            "application/pdf": [".pdf"],
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"],
+            "application/vnd.ms-excel": [".xls"]
           }}
           maxFiles={1}
         />
@@ -217,6 +253,14 @@ export default function ImportContainer({ onClose }: ImportContainerProps) {
           }}
         />
       )}
+
+      {/* Boîte de dialogue de sélection de banque */}
+      <BankSelectionDialog
+        open={showBankSelection}
+        onClose={() => setShowBankSelection(false)}
+        onBankSelect={handleBankSelect}
+        fileName={currentFile?.name || ""}
+      />
     </div>
   );
 }
