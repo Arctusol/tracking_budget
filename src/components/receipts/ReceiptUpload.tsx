@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Card } from "@/components/ui/card";
-import { Upload, Image, FileText, Loader2 } from "lucide-react";
+import { Upload, Image, FileText, Loader2, Maximize2, Minimize2, X } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
@@ -13,12 +13,17 @@ import {
 } from "@/lib/errors/documentProcessingErrors";
 import FileUploadZone from "@/components/import/FileUploadZone";
 import ReceiptProcessingPreview from "./ReceiptProcessingPreview";
+import { Dialog, DialogContent, DialogClose, DialogTitle } from "@/components/ui/dialog";
+import { ReceiptPreview } from "./ReceiptPreview";
 
 export function ReceiptUpload() {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [analyzedReceipt, setAnalyzedReceipt] = useState<ReceiptData | undefined>();
   const [error, setError] = useState<string>("");
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [isPreviewExpanded, setIsPreviewExpanded] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -27,15 +32,21 @@ export function ReceiptUpload() {
     setUploadProgress(0);
     setAnalyzedReceipt(undefined);
     setError("");
+    setPreviewUrl(null);
   };
 
   const handleFileSelect = async (files: File[]) => {
     if (!files.length || !user) return;
 
     const file = files[0];
+    setSelectedFile(file);
     setIsUploading(true);
     setUploadProgress(0);
     setError("");
+
+    // Créer un URL pour l'aperçu
+    const objectUrl = URL.createObjectURL(file);
+    setPreviewUrl(objectUrl);
 
     try {
       setUploadProgress(20);
@@ -150,31 +161,77 @@ export function ReceiptUpload() {
             maxFiles={1}
             maxSize={10 * 1024 * 1024} // 10MB
           >
-            <div className="flex flex-col items-center justify-center p-6 text-center">
-              <div className="mb-4 rounded-full bg-primary/10 p-3">
-                <Upload className="h-6 w-6 text-primary" />
-              </div>
-              <h3 className="mb-1 text-lg font-medium">
-                Déposez votre ticket de caisse ici
-              </h3>
-              <p className="text-sm text-gray-500">
-                ou cliquez pour sélectionner un fichier
-              </p>
-            </div>
           </FileUploadZone>
         </Card>
       )}
 
-      <ReceiptProcessingPreview
-        isProcessing={isUploading}
-        progress={uploadProgress}
-        error={error}
-        receipt={analyzedReceipt}
-        onConfirm={handleConfirm}
-        onCancel={resetState}
-        onUpdateCategory={handleUpdateCategory}
-        onUpdateReceipt={handleUpdateReceipt}
-      />
+      {previewUrl && (
+        <div className="w-full mx-auto bg-gray-50 p-4 md:p-6 rounded-lg">
+          <div className="space-y-4 md:space-y-6">
+            <div className="flex flex-col xl:flex-row justify-between items-start gap-4">
+              <div className="w-full xl:w-3/4">
+                <ReceiptProcessingPreview
+                  isProcessing={isUploading}
+                  progress={uploadProgress}
+                  error={error}
+                  receipt={analyzedReceipt}
+                  onConfirm={handleConfirm}
+                  onCancel={resetState}
+                  onUpdateCategory={handleUpdateCategory}
+                  onUpdateReceipt={handleUpdateReceipt}
+                />
+              </div>
+              
+              <ReceiptPreview 
+                previewUrl={previewUrl}
+                file={selectedFile}
+                onExpand={() => setIsPreviewExpanded(true)}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {!previewUrl && (
+        <ReceiptProcessingPreview
+          isProcessing={isUploading}
+          progress={uploadProgress}
+          error={error}
+          receipt={analyzedReceipt}
+          onConfirm={handleConfirm}
+          onCancel={resetState}
+          onUpdateCategory={handleUpdateCategory}
+          onUpdateReceipt={handleUpdateReceipt}
+        />
+      )}
+
+      {/* Modal pour l'aperçu agrandi */}
+      <Dialog open={isPreviewExpanded} onOpenChange={setIsPreviewExpanded}>
+        <DialogContent className="max-w-4xl">
+          <DialogTitle className="sr-only">Aperçu du ticket de caisse</DialogTitle>
+          <div className="relative h-[80vh]">
+            <DialogClose className="absolute right-2 top-5 z-10">
+              <X className="h-4 w-4" />
+              <span className="sr-only">Fermer</span>
+            </DialogClose>
+            {previewUrl && selectedFile?.type.includes('image') ? (
+              <img 
+                src={previewUrl} 
+                alt="Aperçu du ticket" 
+                className="object-contain w-full h-full"
+              />
+            ) : selectedFile?.type === 'application/pdf' ? (
+              <object
+                data={previewUrl}
+                type="application/pdf"
+                className="w-full h-full"
+              >
+                <p>Le PDF ne peut pas être affiché</p>
+              </object>
+            ) : null}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

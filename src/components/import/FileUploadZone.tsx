@@ -119,18 +119,22 @@ const FileUploadZone = ({
         />
 
         <div className="flex flex-col items-center gap-4">
-          <Upload className="w-12 h-12 text-gray-400" />
-          <div className="text-center">
-            <p className="text-lg font-medium">Drag and drop your files here</p>
-            <p className="text-sm text-gray-500 mt-1">
-              or click to browse from your computer
-            </p>
-          </div>
+        <div className="flex flex-col items-center justify-center p-6 text-center">
+              <div className="mb-4 rounded-full bg-primary/10 p-3">
+                <Upload className="h-6 w-6 text-primary" />
+              </div>
+              <h3 className="mb-1 text-lg font-medium">
+                Déposez votre ticket de caisse ici
+              </h3>
+              <p className="text-sm text-gray-800">
+                ou cliquez pour sélectionner un fichier
+              </p>
+            </div>
 
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <div className="flex items-center gap-2 text-sm text-gray-500">
+                <div className="flex items-center gap-2 text-sm text-gray-800">
                   <FileType className="w-4 h-4" />
                   <span>
                     Accepted formats:{" "}

@@ -503,7 +503,7 @@ export function ReceiptAnalysisDashboard() {
                   <TableBody>
                     {receipts?.map((receipt) => receipt && (
                       <TableRow key={receipt.id}>
-                        <TableCell>{receipt.date ? format(new Date(receipt.date), "dd/MM/yyyy") : "-"}</TableCell>
+                        <TableCell>{receipt.date ? format(parseISO(receipt.date), "dd/MM/yyyy") : "-"}</TableCell>
                         <TableCell>{receipt.merchantName || "Inconnu"}</TableCell>
                         <TableCell>
                           {(receipt.total || 0).toFixed(2)} €

@@ -56,14 +56,14 @@ export type ItemCategoryMap = {
 export const ITEM_CATEGORIES: ItemCategoryMap = {
   // Alimentation - Fruits et Légumes
   VEGETABLES: {
-    keywords: ['tomate', 'carotte', 'salade', 'oignon', 'pomme de terre', 'courgette', 'aubergine', 'poireau', 'chou', 'radis', 'haricot'],
+    keywords: ['tomate','patates', 'poivrons','carotte', 'salade', 'oignon', 'pomme de terre', 'courgette', 'aubergine', 'poireau', 'chou', 'radis', 'haricot'],
     categoryId: CATEGORY_IDS.GROCERIES,
     subType: 'vegetables',
     frenchName: 'Légumes',
     id: PRODUCT_CATEGORY_IDS.VEGETABLES
   },
   FRUITS: {
-    keywords: ['pomme', 'poire', 'banane', 'orange', 'citron', 'fraise', 'framboise', 'raisin', 'kiwi', 'mangue', 'ananas'],
+    keywords: ['pomme', 'poire', 'banane', 'orange', 'citron', 'fraise', 'framboise', 'raisin', 'kiwi', 'mangue', 'ananas', 'pressade'],
     categoryId: CATEGORY_IDS.GROCERIES,
     subType: 'fruits',
     frenchName: 'Fruits',
@@ -72,7 +72,7 @@ export const ITEM_CATEGORIES: ItemCategoryMap = {
 
   // Alimentation - Produits Laitiers
   DAIRY: {
-    keywords: ['lait', 'fromage', 'yaourt', 'beurre', 'crème', 'camembert', 'emmental', 'comté', 'saint moret', 'chamonix'],
+    keywords: ['lait', 'creme','fromage', 'yaourt', 'beurre', 'crème', 'camembert', 'emmental', 'comté', 'saint moret', 'chamonix'],
     categoryId: CATEGORY_IDS.GROCERIES,
     subType: 'dairy',
     frenchName: 'Produits Laitiers',
@@ -81,7 +81,7 @@ export const ITEM_CATEGORIES: ItemCategoryMap = {
 
   // Alimentation - Viandes et Poissons
   MEAT: {
-    keywords: ['poulet', 'boeuf', 'porc', 'jambon', 'saucisse', 'steak', 'viande', 'bacon', 'saucisson'],
+    keywords: ['poulet', 'roti','knacks','chair','oeuf','campagne', 'mortadella','jbon','charcutier', 'hache', 'boeuf', 'porc', 'jambon', 'saucisse', 'steak', 'viande', 'bacon', 'saucisson', 'chorizo', 'filet mignon', 'lardons', 'escalope', 'côtelette', 'chipolatas', 'andouillette', 'merguez', 'rôti', 'entrecôte', 'dinde', 'foie gras', 'veau', 'agneau', 'charcuterie', 'boudin', 'pâté'],
     categoryId: CATEGORY_IDS.GROCERIES,
     subType: 'meat',
     frenchName: 'Viandes',
@@ -104,7 +104,7 @@ export const ITEM_CATEGORIES: ItemCategoryMap = {
     id: PRODUCT_CATEGORY_IDS.ALCOHOL
   },
   SOFT_DRINKS: {
-    keywords: ['coca', 'fanta', 'sprite', 'jus', 'eau', 'san pel', 'evian', 'vittel', 'perrier', 'thé', 'café', 'sirop', 'boisson énergétique', 'ice tea', 'capri-sun'],
+    keywords: ['coca', 'fanta', 'sprite', 'jus', 'eau', 'san pel', 'evian', 'vittel', 'perrier', 'thé', 'café', 'sirop', 'boisson énergétique', 'ice tea', 'capri-sun', 'pims', 'pims lu'],
     categoryId: CATEGORY_IDS.GROCERIES,
     subType: 'beverages',
     frenchName: 'Boissons',
@@ -113,7 +113,7 @@ export const ITEM_CATEGORIES: ItemCategoryMap = {
 
   // Alimentation - Snacks et Confiseries
   SNACKS: {
-    keywords: ['chips', 'cacahuète', 'biscuit', 'gâteau', 'chocolat', 'bonbon', 'friandise', 'gaufre', 'barre céréale', 'pop corn', 'fruits secs', 'crackers'],
+    keywords: ['chips', 'cacahuète', 'biscuit', 'gâteau', 'chocolat', 'bonbon', 'friandise', 'gaufre', 'barre céréale', 'pop corn', 'fruits secs', 'crackers', 'tuiles', 'chamonix', 'gap extra', 'lustucru'],
     categoryId: CATEGORY_IDS.GROCERIES,
     subType: 'snacks',
     frenchName: 'Snacks',
@@ -122,7 +122,7 @@ export const ITEM_CATEGORIES: ItemCategoryMap = {
 
   // Alimentation - Plats préparés
   PREPARED_MEALS: {
-    keywords: ['plat cuisiné', 'plat préparé', 'surgelé', 'lasagne', 'pizza', 'ravioli', 'hachis', 'parmentier', 'gratin', 'quiche', 'nuggets', 'cordon bleu'],
+    keywords: ['plat cuisiné', 'plat préparé', 'surgelé', 'lasagne', 'pizza', 'ravioli', 'hachis', 'parmentier', 'gratin', 'quiche', 'nuggets', 'cordon bleu', 'girasoli', 'gnocchi', 'batonnet coraya'],
     categoryId: CATEGORY_IDS.GROCERIES,
     frenchName: 'Plats préparés',
     id: PRODUCT_CATEGORY_IDS.PREPARED_MEALS
@@ -164,7 +164,7 @@ export const ITEM_CATEGORIES: ItemCategoryMap = {
 
   // Maison
   HOME_SUPPLIES: {
-    keywords: ['serviette', 'papier toilette', 'éponge', 'sac poubelle', 'lessive', 'nettoyant', 'balai'],
+    keywords: ['serviette','wc', 'gel', 'cajoline','papier toilette', 'éponge', 'sac poubelle', 'lessive', 'nettoyant', 'balai'],
     categoryId: CATEGORY_IDS.HOME,
     subType: 'supplies',
     frenchName: 'Fournitures pour la maison',
@@ -187,7 +187,7 @@ export const ITEM_CATEGORIES: ItemCategoryMap = {
   },
 
   BAKERY: {
-    keywords: ['pain', 'baguette', 'croissant', 'brioche', 'pain de mie', 'viennoiserie', 'pain au chocolat'],
+    keywords: ['pain','feuill','toast', 'baguette', 'croissant', 'brioche', 'pain de mie', 'viennoiserie', 'pain au chocolat'],
     categoryId: CATEGORY_IDS.GROCERIES,
     subType: 'bakery',
     frenchName: 'Boulangerie',
@@ -195,7 +195,7 @@ export const ITEM_CATEGORIES: ItemCategoryMap = {
   },
   
   CEREALS_PASTA: {
-    keywords: ['farine', 'pâtes', 'riz', 'céréales', 'semoule', 'couscous', 'quinoa', 'boulgour', 'muesli'],
+    keywords: ['farine', 'graine','pates','pâtes', 'riz', 'céréales', 'semoule', 'couscous', 'quinoa', 'boulgour', 'muesli', 'coquillettes', 'nouilles', 'flocons d\'avoine', 'chia', 'tanoshi ramen', 'blé complet', 'fusilli', 'torsades', 'penne', 'macaroni', 'spaghetti', 'tagliatelle', 'farfalle', 'linguine', 'lasagnes', 'ravioli', 'tortellini', 'vermicelles', 'orzo', 'risoni', 'conchiglie', 'cannelloni', 'bucatini', 'rigatoni', 'papardelle'],
     categoryId: CATEGORY_IDS.GROCERIES,
     subType: 'cereals',
     frenchName: 'Céréales et Pâtes',
@@ -220,7 +220,7 @@ export const ITEM_CATEGORIES: ItemCategoryMap = {
   },
 
   CANNED_FOOD: {
-    keywords: ['conserve', 'thon en boîte', 'maïs', 'petit pois', 'haricot vert', 'cassoulet', 'ravioli en boîte', 'sauce tomate', 'concentré de tomate', 'sardine en boîte', 'macédoine'],
+    keywords: ['conserve', 'thon en boîte', 'maïs', 'petit pois', 'haricot vert', 'cassoulet', 'ravioli en boîte', 'sauce tomate', 'concentré de tomate', 'sardine en boîte', 'macédoine', 'tomate pelée', 'd\'aucy'],
     categoryId: CATEGORY_IDS.GROCERIES,
     subType: 'canned',
     frenchName: 'Conserves',

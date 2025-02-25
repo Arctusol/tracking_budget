@@ -27,6 +27,11 @@ export interface ReceiptData {
   metadata?: any;
   group_id?: string;
   discounts?: ReceiptDiscount[];
+  merchant?: {
+    id: string;
+    name: string;
+    normalized_name: string;
+  };
   validation?: {
     detectedTotal: number;
     calculatedTotal: number;
@@ -75,6 +80,103 @@ function extractNumberFromString(str: string): number {
     return parseInt(intMatch[1], 10);
   }
   return 0;
+}
+
+// Fonction pour extraire la date d'un ticket
+function extractReceiptDate(content: string): string | null {
+  // Formats de date possibles
+  const datePatterns = [
+    // Format jour/mois/année (30/11/24, 30/11/2024)
+    /(\d{1,2})[\/\.-](\d{1,2})[\/\.-](\d{2,4})/,
+    
+    // Format jour mois année en lettres (30 novembre 2024)
+    /(\d{1,2})\s+(janvier|février|fevrier|mars|avril|mai|juin|juillet|aout|août|septembre|octobre|novembre|décembre|decembre)\s+(\d{4})/i,
+    
+    // Format jour mois abrégé année (30 nov. 2024, 30 nov 2024)
+    /(\d{1,2})\s+(janv?\.?|févr?\.?|fevr?\.?|mars\.?|avr\.?|mai\.?|juin\.?|juil\.?|août\.?|aout\.?|sept?\.?|oct\.?|nov\.?|déc\.?|dec\.?)\s+(\d{4})/i,
+    
+    // Format avec le mot "date" ou similaire
+    /(caisse|ticket|date).*?(\d{1,2})[\/\.-](\d{1,2})[\/\.-](\d{2,4})/i,
+    
+    // Format avec le mot "date" suivi d'une date en lettres
+    /(caisse|ticket|date).*?(\d{1,2})\s+(janvier|février|fevrier|mars|avril|mai|juin|juillet|aout|août|septembre|octobre|novembre|décembre|decembre)\s+(\d{4})/i
+  ];
+  
+  // Tableau de correspondance des mois en français
+  const monthMap: {[key: string]: number} = {
+    'janvier': 0, 'janv': 0, 'jan': 0,
+    'février': 1, 'fevrier': 1, 'févr': 1, 'fevr': 1, 'fev': 1,
+    'mars': 2,
+    'avril': 3, 'avr': 3,
+    'mai': 4,
+    'juin': 5,
+    'juillet': 6, 'juil': 6,
+    'août': 7, 'aout': 7,
+    'septembre': 8, 'sept': 8, 'sep': 8,
+    'octobre': 9, 'oct': 9,
+    'novembre': 10, 'nov': 10,
+    'décembre': 11, 'decembre': 11, 'déc': 11, 'dec': 11
+  };
+  
+  // Rechercher les patterns dans le contenu
+  for (const pattern of datePatterns) {
+    const matches = content.matchAll(new RegExp(pattern, 'g'));
+    for (const match of Array.from(matches)) {
+      try {
+        let day, month, year;
+        
+        if (pattern.toString().includes('caisse|ticket|date')) {
+          // Format avec mot-clé
+          if (match.length >= 5) {
+            // Format numérique avec mot-clé
+            day = parseInt(match[2]);
+            month = parseInt(match[3]) - 1;
+            year = parseInt(match[4]);
+          } else {
+            // Format avec mois en lettres et mot-clé
+            day = parseInt(match[2]);
+            month = monthMap[match[3].toLowerCase()];
+            year = parseInt(match[4]);
+          }
+        } else if (pattern.toString().includes('janvier|février')) {
+          // Format avec mois en lettres
+          day = parseInt(match[1]);
+          month = monthMap[match[2].toLowerCase()];
+          year = parseInt(match[3]);
+        } else {
+          // Format numérique
+          day = parseInt(match[1]);
+          month = parseInt(match[2]) - 1; // Les mois en JS commencent à 0
+          year = parseInt(match[3]);
+        }
+        
+        // Ajuster l'année si format court (24 -> 2024)
+        if (year < 100) {
+          year += 2000;
+        }
+        
+        // Vérifier que les valeurs sont dans des plages valides
+        if (day < 1 || day > 31 || month < 0 || month > 11 || year < 2000 || year > 2100) {
+          continue;
+        }
+        
+        const date = new Date(year, month, day);
+        
+        // Vérifier si la date est valide et pas trop dans le futur
+        const now = new Date();
+        if (date.getTime() <= now.getTime() + 86400000) { // Permettre jusqu'à 1 jour dans le futur
+          console.log("Date extraite:", date.toISOString().split('T')[0], "depuis", match[0]);
+          return date.toISOString().split('T')[0]; // Format YYYY-MM-DD
+        }
+      } catch (e) {
+        console.error("Erreur lors de l'analyse de la date:", e);
+      }
+    }
+  }
+  
+  // Si aucune date valide n'est trouvée, utiliser la date actuelle
+  console.log("Aucune date valide trouvée, utilisation de la date actuelle");
+  return new Date().toISOString().split('T')[0];
 }
 
 export async function analyzeReceipt(file: File): Promise<ReceiptData | null> {
@@ -145,6 +247,9 @@ export async function analyzeReceipt(file: File): Promise<ReceiptData | null> {
     const discounts: ReceiptDiscount[] = [];
     let total = 0;
 
+    // Ajouter une variable pour stocker les lignes en attente d'association
+    let pendingItemDescription: string | null = null;
+    
     // Process all tables from the document
     if (analyzeResult.tables && analyzeResult.tables.length > 0) {
       console.log(`Processing ${analyzeResult.tables.length} tables...`);
@@ -182,13 +287,36 @@ export async function analyzeReceipt(file: File): Promise<ReceiptData | null> {
           
           const description = descriptionCell.content.trim();
           
-          // Vérifier si on a atteint la section des totaux
+          // Vérifier si on a atteint la section des totaux ou remises
           if (description.toLowerCase().includes('a payer') || 
               description.toLowerCase().includes('total eligible') ||
               description.toLowerCase().includes('carte') ||
               description.toLowerCase().includes('tva') ||
-              description.toLowerCase().includes('cb')) {
+              description.toLowerCase().includes('cb') ||
+              description.toLowerCase().includes('bon immediat') ||
+              description.toLowerCase().includes('avoir web') ||
+              description.toLowerCase().includes('remise')) {
             isAfterTotal = true;
+            
+            // Traiter les remises spécifiques
+            if (description.toLowerCase().includes('bon immediat') || 
+                description.toLowerCase().includes('avoir web')) {
+              const amountCell = cells.find(cell => {
+                const content = cell.content?.trim();
+                return content?.match(/\d+[.,]\d+/);
+              });
+              
+              if (amountCell) {
+                const amount = extractNumberFromString(amountCell.content);
+                discounts.push({
+                  description: description,
+                  amount: amount,
+                  type: 'total'
+                });
+                console.log(`Added discount: ${description} - ${amount}€`);
+              }
+            }
+            
             return;
           }
 
@@ -197,6 +325,39 @@ export async function analyzeReceipt(file: File): Promise<ReceiptData | null> {
 
           // Skip if this is already processed as a discount
           if (discounts.some(d => d.description === description)) return;
+
+          // Vérifier si c'est une ligne de quantité × prix
+          const isQuantityPriceLine = description.match(/^\d+\s*[×x]\s*\d+[.,]\d+$/);
+          
+          if (isQuantityPriceLine && pendingItemDescription) {
+            // Extraire la quantité et le prix
+            const parts = description.split(/[×x]/).map(part => part.trim());
+            const quantity = parseInt(parts[0]);
+            // Nettoyer le prix (enlever le symbole € et autres caractères non numériques)
+            const priceText = parts[1].replace(/€/g, '').trim();
+            const price = parseFloat(priceText.replace(',', '.'));
+            
+            // Ajouter l'article avec la description précédente
+            if (price > 0 && price < 1000) {
+              items.push({
+                description: pendingItemDescription,
+                quantity: quantity,
+                price: price,
+                total: price * quantity,
+                product_category_id: detectItemCategory(pendingItemDescription)
+              });
+              console.log("Added item with quantity:", { 
+                description: pendingItemDescription, 
+                quantity, 
+                price, 
+                total: price * quantity 
+              });
+            }
+            
+            // Réinitialiser la description en attente
+            pendingItemDescription = null;
+            return;
+          }
 
           // Find quantity cell (usually in the middle)
           const quantityCell = cells.find(cell => {
@@ -261,20 +422,93 @@ export async function analyzeReceipt(file: File): Promise<ReceiptData | null> {
               }
             }
           } else {
-            const quantity = quantityCell ? parseInt(quantityCell.content) : 1;
-            const price = extractNumberFromString(priceCell?.content || '0');
+            // Vérifier si la description contient un format quantité × prix intégré
+            const qtyPriceInDesc = description.match(/.*?(\d+)\s*[×x]\s*(\d+[.,]\d+)\s*€?$/);
+            
+            if (qtyPriceInDesc) {
+              // Extraire la quantité et le prix de la description
+              const quantity = parseInt(qtyPriceInDesc[1]);
+              const price = parseFloat(qtyPriceInDesc[2].replace(',', '.'));
+              
+              // Nettoyer la description pour retirer la partie quantité × prix
+              let cleanedDescription = description.replace(/\s*\d+\s*[×x]\s*\d+[.,]\d+\s*€?$/, '').trim();
+              
+              // Si la description nettoyée est vide et qu'il y a une description en attente, l'utiliser
+              if (cleanedDescription === '' && pendingItemDescription) {
+                cleanedDescription = pendingItemDescription;
+                pendingItemDescription = null;
+              }
+              
+              if (price > 0 && price < 1000) {
+                items.push({
+                  description: cleanedDescription,
+                  quantity,
+                  price,
+                  total: price * quantity,
+                  product_category_id: detectItemCategory(cleanedDescription)
+                });
+                console.log("Added item with embedded quantity/price:", { 
+                  description: cleanedDescription, 
+                  quantity, 
+                  price, 
+                  total: price * quantity 
+                });
+                pendingItemDescription = null;
+                return;
+              }
+            }
+            
+            if (priceCell) {
+              // Si on a un prix, on ajoute l'article directement
+              const quantity = quantityCell ? parseInt(quantityCell.content) : 1;
+              const price = extractNumberFromString(priceCell?.content || '0');
 
-            if (price > 0 && price < 1000) {
-              items.push({
-                description,
-                quantity,
-                price,
-                total: price * quantity,
-                product_category_id: detectItemCategory(description)
-              });
-              console.log("Added item:", { description, quantity, price, total: price * quantity });
+              // Vérifier si c'est une ligne de prix pour un article en attente
+              if (pendingItemDescription && 
+                  (!descriptionCell || descriptionCell.content.trim().match(/^\d+(\s*[×x])?\s*\d*[.,]?\d*\s*€?$/))) {
+                // C'est probablement une ligne liée à la description en attente
+                if (price > 0 && price < 1000) {
+                  items.push({
+                    description: pendingItemDescription,
+                    quantity,
+                    price,
+                    total: price * quantity,
+                    product_category_id: detectItemCategory(pendingItemDescription)
+                  });
+                  console.log("Added item with pending description:", { 
+                    description: pendingItemDescription, 
+                    quantity, 
+                    price, 
+                    total: price * quantity 
+                  });
+                  pendingItemDescription = null;
+                }
+              } else if (price > 0 && price < 1000) {
+                // Cas normal - ajouter comme nouvel article
+                items.push({
+                  description,
+                  quantity,
+                  price,
+                  total: price * quantity,
+                  product_category_id: detectItemCategory(description)
+                });
+                console.log("Added item:", { description, quantity, price, total: price * quantity });
+                pendingItemDescription = null;
+              } else {
+                console.log("Skipped item:", { description, price });
+              }
             } else {
-              console.log("Skipped item:", { description, price });
+              // Si on n'a pas de prix, on stocke la description pour l'associer à la ligne suivante
+              // Ignorer les descriptions qui semblent être des titres de section ou des séparateurs
+              if (!description.startsWith('>>') && 
+                  !description.match(/^-+$/) && 
+                  !description.toLowerCase().includes('article') &&
+                  !description.toLowerCase().includes('ticket')) {
+                pendingItemDescription = description;
+                console.log("Stored pending item description:", pendingItemDescription);
+              } else {
+                console.log("Ignored section header:", description);
+              }
             }
           }
         });
@@ -336,16 +570,20 @@ export async function analyzeReceipt(file: File): Promise<ReceiptData | null> {
     // Si aucun total n'a été détecté, utiliser le total calculé
     const finalTotal = total > 0 ? total - totalDiscounts : calculatedTotal;
 
-    return {
-      items,
+    // Extraire la date du contenu du ticket
+    const extractedDate = extractReceiptDate(analyzeResult.content);
+    
+    // Utiliser la date extraite au lieu de la date actuelle
+    const receiptData: ReceiptData = {
+      user_id: "", // This will be set by the caller
       merchantName,
-      merchant_id, // Ajouter l'ID du marchand
+      merchant_id,
       total: finalTotal,
-      date: new Date().toISOString(),
+      date: extractedDate || new Date().toISOString().split('T')[0], // Utiliser la date extraite ou la date actuelle
+      items,
       category_id: suggestedCategory,
       status: "processed",
-      user_id: "", // This will be set by the caller
-      discounts, // Ajouter les remises détectées
+      discounts,
       validation: {
         detectedTotal: total,
         calculatedTotal,
@@ -353,6 +591,8 @@ export async function analyzeReceipt(file: File): Promise<ReceiptData | null> {
         warnings
       }
     };
+
+    return receiptData;
   } catch (error) {
     console.error("Error analyzing receipt:", error);
     if (error instanceof DocumentProcessingError) {
