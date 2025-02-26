@@ -19,6 +19,8 @@ export interface ProcessedTransaction extends Omit<Transaction, 'created_by' | '
     bank_statement_id?: string;
     debit_amount?: string;
     original_description?: string;
+    detection_source?: 'historical' | 'rules' | 'keywords' | 'amount';
+    confidence?: number;
   };
 }
 
