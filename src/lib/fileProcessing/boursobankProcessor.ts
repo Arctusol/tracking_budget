@@ -349,7 +349,7 @@ class BoursobankProcessor implements BankProcessor {
   }
 
   // Nouvelle méthode pour ajouter une transaction avec détection de transactions combinées
-  private addTransactionWithSplitting(transactions: ProcessedTransaction[], transaction: Partial<ProcessedTransaction>): void {
+  private async addTransactionWithSplitting(transactions: ProcessedTransaction[], transaction: Partial<ProcessedTransaction>): Promise<void> {
     if (!transaction.description) {
       console.log("Transaction sans description, impossible à traiter");
       return;
@@ -397,8 +397,8 @@ class BoursobankProcessor implements BankProcessor {
             debitAmount = -Math.abs(parseFloat(transaction.metadata.debit_amount.replace(',', '.')));
           }
 
-          // Créer deux transactions distinctes
           // 1. Transaction carte (débit)
+          const cardCategory = await detectCategory(cardDescription, debitAmount);
           const cardTransaction: ProcessedTransaction = {
             id: uuidv4(),
             date: transaction.date || '',
@@ -406,7 +406,7 @@ class BoursobankProcessor implements BankProcessor {
             amount: debitAmount,
             type: 'expense',
             merchant: extractMerchantFromDescription(cardDescription),
-            category_id: detectCategory(cardDescription, debitAmount),
+            category_id: cardCategory,
             metadata: {
               ...transaction.metadata,
               original_description: transaction.description
@@ -414,14 +414,15 @@ class BoursobankProcessor implements BankProcessor {
           };
           
           // 2. Transaction virement (crédit)
+          const transferCategory = await detectCategory(transferDescription, Math.abs(transaction.amount || 0));
           const transferTransaction: ProcessedTransaction = {
             id: uuidv4(),
             date: transaction.date || '',
             description: transferDescription,
-            amount: Math.abs(transaction.amount || 0), // Le montant crédit est généralement le montant principal
+            amount: Math.abs(transaction.amount || 0),
             type: 'income',
             merchant: extractMerchantFromDescription(transferDescription),
-            category_id: detectCategory(transferDescription, Math.abs(transaction.amount || 0)),
+            category_id: transferCategory,
             metadata: {
               ...transaction.metadata,
               original_description: transaction.description
@@ -441,14 +442,15 @@ class BoursobankProcessor implements BankProcessor {
     }
 
     // Si pas de séparation nécessaire ou en cas d'erreur, ajouter la transaction originale
+    const category = await detectCategory(transaction.description || '', transaction.amount || 0);
     const completeTransaction: ProcessedTransaction = {
       id: uuidv4(),
       date: transaction.date || '',
-      description: transaction.description,
+      description: transaction.description || '',
       amount: transaction.amount || 0,
       type: (transaction.amount || 0) < 0 ? 'expense' : 'income',
-      merchant: transaction.merchant || extractMerchantFromDescription(transaction.description),
-      category_id: detectCategory(transaction.description, transaction.amount || 0),
+      merchant: transaction.merchant || extractMerchantFromDescription(transaction.description || ''),
+      category_id: category,
       metadata: transaction.metadata
     };
     

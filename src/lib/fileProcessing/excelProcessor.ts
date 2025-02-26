@@ -5,6 +5,7 @@ import { TransactionType } from "../../types/transaction";
 import { validateTransactions } from "../validation";
 import { detectCategory } from "./categoryDetection";
 import { extractMerchantFromDescription } from "./merchantExtraction";
+import { transactionMatcher } from "../services/transactionMatcher";
 
 // Helper function to convert DD/MM/YYYY to YYYY-MM-DD
 function convertToISODate(date: string | number): string {
@@ -231,8 +232,16 @@ async function processBoursobankRow(row: any, dateColumn: string | null, descrip
     }
   }
 
-  const merchant = extractMerchantFromDescription(description);
+  console.log("[ExcelProcessor] Detecting category for transaction:", {
+    description: description,
+    amount: amount,
+    date: date
+  });
+  
   const category_id = await detectCategory(description, amount);
+  console.log("[ExcelProcessor] Category detection result:", category_id);
+
+  const merchant = extractMerchantFromDescription(description);
 
   // Vérification supplémentaire pour les virements entrants basée sur la description
   if (amount !== 0 && (
@@ -349,7 +358,15 @@ async function processBankStatementRow(row: any): Promise<ProcessedTransaction> 
   const date = convertToISODate(dateValue);
   const description = row["libellé"] || row["Libellé"] || "";
   const merchant = extractMerchantFromDescription(description);
+  
+  console.log("[ExcelProcessor] Detecting category for transaction:", {
+    description: description,
+    amount: amount,
+    date: date
+  });
+  
   const category_id = await detectCategory(description, amount);
+  console.log("[ExcelProcessor] Category detection result:", category_id);
 
   return {
     id: uuidv4(),
@@ -362,19 +379,16 @@ async function processBankStatementRow(row: any): Promise<ProcessedTransaction> 
   };
 }
 
-function processStandardRow(row: any): ProcessedTransaction {
-  // Déterminer les valeurs et types appropriés selon le format des données
-  const amountValue = row.amount || row.Amount || row.montant || row.Montant || 0;
-  let amount = typeof amountValue === 'number' 
-    ? amountValue 
-    : parseFloat(amountValue.toString().replace(',', '.'));
-  
+async function processStandardRow(row: any): Promise<ProcessedTransaction> {
+  const amount = parseFloat((row.amount || row.Amount || row.montant || row.Montant || "0").replace(',', '.'));
   const description = row.description || row.Description || row.libelle || row.Libelle || "";
   const merchant = extractMerchantFromDescription(description);
-  
-  const dateValue = row.date || row.Date || row.date_operation || row.DateOperation || "";
-  const date = convertToISODate(dateValue);
-  
+  const rawDate = row.date || row.Date || row.date_operation || row.DateOperation || "";
+  const date = convertToISODate(rawDate);
+
+  // Attendre la détection de catégorie
+  const category_id = await detectCategory(description, amount);
+
   return {
     id: uuidv4(),
     date,
@@ -382,7 +396,11 @@ function processStandardRow(row: any): ProcessedTransaction {
     amount,
     type: amount >= 0 ? 'income' as TransactionType : 'expense' as TransactionType,
     merchant,
-    category_id: row.category || row.Category || undefined,
+    category_id,
+    metadata: {
+      detection_source: 'rules',
+      confidence: 0.8
+    }
   };
 }
 
@@ -735,7 +753,7 @@ export async function processExcel(file: File): Promise<ProcessedTransaction[]> 
                 console.log("Processing row:", row);
                 const transaction = isBankStatementSheet 
                   ? await processBankStatementRow(row) 
-                  : processStandardRow(row);
+                  : await processStandardRow(row);
                 console.log("Mapped transaction:", transaction);
                 return transaction;
               })

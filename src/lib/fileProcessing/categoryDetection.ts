@@ -1,6 +1,16 @@
 import { CATEGORY_IDS } from '../constants/constants';
+import { transactionMatcher } from '../services/transactionMatcher';
 
-export function detectCategory(description: string, amount: number): string | undefined {
+export async function detectCategory(description: string, amount: number): Promise<string | undefined> {
+  // D'abord, essayer de trouver une correspondance historique
+  const historicalMatch = await transactionMatcher.findMatch(description);
+  if (historicalMatch) {
+    console.log("[CategoryDetection] Found historical match:", historicalMatch);
+    return historicalMatch.categoryId;
+  }
+
+  console.log("[CategoryDetection] No historical match found, using rule-based detection");
+  
   // Convertir en minuscules et nettoyer la description
   const cleanDesc = description.toLowerCase().trim();
   const words = cleanDesc.split(/[\s,.-]+/);
@@ -93,6 +103,11 @@ export function detectCategory(description: string, amount: number): string | un
       keywords: ['cinema', 'theatre', 'concert', 'spectacle', 'musee', 'ugc', 'pathe', 'gaumont', 'mk2', 'exposition'],
       exactMatch: false,
       category: CATEGORY_IDS.ENTERTAINMENT 
+    },
+    { 
+      keywords: ['tabac', 'tabacpress', 'cigarette', 'vape', 'vapote', 'presse'],
+      exactMatch: false,
+      category: CATEGORY_IDS.TOBACCO 
     },
     { 
       keywords: ['sport', 'fitness', 'gym', 'piscine', 'basic', 'neoness', 'club', 'salle'],
@@ -204,6 +219,7 @@ export function detectCategory(description: string, amount: number): string | un
     if (hasExactKeyword(['salaire'])) return CATEGORY_IDS.SALARY;
     if (hasExactKeyword(['freelance'])) return CATEGORY_IDS.FREELANCE;
     if (hasExactKeyword(['remboursement'])) return CATEGORY_IDS.REIMBURSEMENTS;
+    if (hasExactKeyword(['credit', 'pret', 'emprunt', 'financement'])) return CATEGORY_IDS.CREDITS;
   }
 
   // Si aucune catégorie n'a été trouvée

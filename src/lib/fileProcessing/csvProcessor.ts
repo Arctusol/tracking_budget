@@ -5,6 +5,7 @@ import { TransactionType } from "../../types/transaction";
 import { validateTransactions } from "../validation";
 import { detectCategory } from "./categoryDetection";
 import { extractMerchantFromDescription } from "./merchantExtraction";
+import { transactionMatcher } from "../services/transactionMatcher";
 
 // Helper function to convert DD/MM/YYYY to YYYY-MM-DD
 function convertToISODate(date: string): string {
@@ -55,12 +56,17 @@ async function processBankStatementRow(row: any): Promise<ProcessedTransaction> 
   };
 }
 
-function processStandardRow(row: any): ProcessedTransaction {
-  const amount = parseFloat((row.amount || row.Amount || row.montant || row.Montant || "0").replace(',', '.'));
-  const description = row.description || row.Description || row.libelle || row.Libelle || "";
+async function processStandardRow(row: any): Promise<ProcessedTransaction> {
+  const date = convertToISODate(row.date || row.Date || row["Date d'opération"] || '');
+  const description = row.description || row.Description || row.Libellé || row.libelle || '';
+  const amount = parseFloat(row.amount || row.Amount || row.Montant || row["Montant (EUROS)"] || '0');
   const merchant = extractMerchantFromDescription(description);
-  const rawDate = row.date || row.Date || row.date_operation || row.DateOperation || "";
-  const date = convertToISODate(rawDate);
+
+  console.log("[CSVProcessor] Processing row:", { date, description, amount, merchant });
+  
+  // Détection de catégorie
+  const category_id = await detectCategory(description, amount);
+  console.log("[CSVProcessor] Rule-based detection result:", category_id);
   
   return {
     id: uuidv4(),
@@ -69,7 +75,11 @@ function processStandardRow(row: any): ProcessedTransaction {
     amount,
     type: amount >= 0 ? 'income' as TransactionType : 'expense' as TransactionType,
     merchant,
-    category_id: row.category || row.Category || undefined,
+    category_id,
+    metadata: {
+      detection_source: 'rules' as const,
+      confidence: 0.8
+    }
   };
 }
 

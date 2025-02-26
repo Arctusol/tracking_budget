@@ -95,6 +95,10 @@ const categoryRules: CategoryRule[] = [
       "bowling",
       "escape game",
       "sport",
+      "tabac",
+      "tabacpress",
+      "cigarette",
+      "vape",
     ],
   },
   {
@@ -148,6 +152,23 @@ const categoryRules: CategoryRule[] = [
       "virement employeur",
     ],
     patterns: [/sal(?:aire)?\s+(?:net|brut)/i],
+  },
+  {
+    category: "income",
+    keywords: [
+      "salaire",
+      "paie",
+      "paye",
+      "remuneration",
+      "rémunération",
+      "traitement",
+      "virement employeur",
+      "credit",
+      "pret",
+      "emprunt",
+      "financement"
+    ],
+    patterns: [/sal(?:aire)?\s+(?:net|brut)/i, /credit\s+(?:immobilier|conso|auto)/i],
   },
 ];
 

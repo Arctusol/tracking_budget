@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { NestedSelect } from '@/components/ui/nested-select';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
@@ -135,21 +136,11 @@ export function TransactionFilters({ categories, onFiltersChange }: TransactionF
 
       <div className="space-y-2">
         <Label>Catégories</Label>
-        <Select
+        <NestedSelect
           value={filters.categories?.[0]}
           onValueChange={(value) => handleFilterChange('categories', value ? [value] : undefined)}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="Toutes les catégories" />
-          </SelectTrigger>
-          <SelectContent>
-            {categories.map((category) => (
-              <SelectItem key={category.id} value={category.id}>
-                {category.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          placeholder="Toutes les catégories"
+        />
       </div>
 
       <div className="space-y-2">

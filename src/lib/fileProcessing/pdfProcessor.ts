@@ -264,6 +264,7 @@ class StandardPdfProcessor implements BankProcessor {
 
           if (cell.rowIndex !== currentRow) {
             if (currentTransaction.date && currentTransaction.description) {
+              const category_id = await detectCategory(currentTransaction.description, currentTransaction.amount || 0);
               const completeTransaction: ProcessedTransaction = {
                 id: uuidv4(),
                 date: currentTransaction.date,
@@ -271,7 +272,7 @@ class StandardPdfProcessor implements BankProcessor {
                 amount: currentTransaction.amount || 0,
                 type: (currentTransaction.amount || 0) < 0 ? 'expense' : 'income',
                 merchant: currentTransaction.merchant || extractMerchantFromDescription(currentTransaction.description),
-                category_id: detectCategory(currentTransaction.description, currentTransaction.amount || 0),
+                category_id,
                 metadata: {
                   date_valeur: currentTransaction.metadata?.date_valeur || currentTransaction.date,
                   numero_releve: numeroReleve,
@@ -330,6 +331,7 @@ class StandardPdfProcessor implements BankProcessor {
 
         // Ajouter la dernière transaction
         if (currentTransaction.date && currentTransaction.description) {
+          const category_id = await detectCategory(currentTransaction.description, currentTransaction.amount || 0);
           const completeTransaction: ProcessedTransaction = {
             id: uuidv4(),
             date: currentTransaction.date,
@@ -337,7 +339,7 @@ class StandardPdfProcessor implements BankProcessor {
             amount: currentTransaction.amount || 0,
             type: (currentTransaction.amount || 0) < 0 ? 'expense' : 'income',
             merchant: currentTransaction.merchant || extractMerchantFromDescription(currentTransaction.description),
-            category_id: detectCategory(currentTransaction.description, currentTransaction.amount || 0),
+            category_id,
             metadata: {
               date_valeur: currentTransaction.metadata?.date_valeur || currentTransaction.date,
               numero_releve: numeroReleve,
@@ -475,4 +477,52 @@ export async function processPDF(file: File, bankType?: string): Promise<Process
     console.error("Error processing PDF:", error);
     throw new DocumentProcessingError("Failed to process PDF document");
   }
+}
+
+async function processTransaction(transaction: any): Promise<ProcessedTransaction> {
+  const description = transaction.description || "";
+  const amount = parseFloat(transaction.amount || "0");
+  const date = transaction.date || "";
+  const merchant = extractMerchantFromDescription(description);
+  
+  // Attendre la détection de catégorie
+  const category_id = await detectCategory(description, amount);
+
+  return {
+    id: uuidv4(),
+    date,
+    description,
+    amount,
+    type: amount >= 0 ? 'income' : 'expense',
+    merchant,
+    category_id,
+    metadata: {
+      detection_source: 'rules',
+      confidence: 0.8
+    }
+  };
+}
+
+async function processAzureTransaction(transaction: any): Promise<ProcessedTransaction> {
+  const description = transaction.description || "";
+  const amount = parseFloat(transaction.amount || "0");
+  const date = transaction.date || "";
+  const merchant = extractMerchantFromDescription(description);
+  
+  // Attendre la détection de catégorie
+  const category_id = await detectCategory(description, amount);
+
+  return {
+    id: uuidv4(),
+    date,
+    description,
+    amount,
+    type: amount >= 0 ? 'income' : 'expense',
+    merchant,
+    category_id,
+    metadata: {
+      detection_source: 'rules',
+      confidence: 0.8
+    }
+  };
 }

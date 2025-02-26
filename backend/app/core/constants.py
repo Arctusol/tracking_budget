@@ -50,6 +50,8 @@ class Category(str, Enum):
     REIMBURSEMENTS = "REIMBURSEMENTS"
     TRANSFER_ANTONIN = "TRANSFER_ANTONIN"
     TRANSFER_AMANDINE = "TRANSFER_AMANDINE"
+    TOBACCO = "TOBACCO"
+    CREDITS = "CREDITS"
 
 CATEGORY_DESCRIPTIONS = {
     # Catégories principales
@@ -100,7 +102,9 @@ CATEGORY_DESCRIPTIONS = {
     Category.FREELANCE: "freelance income",
     Category.REIMBURSEMENTS: "expense reimbursements",
     Category.TRANSFER_ANTONIN: "transfers to/from Antonin",
-    Category.TRANSFER_AMANDINE: "transfers to/from Amandine"
+    Category.TRANSFER_AMANDINE: "transfers to/from Amandine",
+    Category.TOBACCO: "tobacco, cigarettes, vape",
+    Category.CREDITS: "loans, credits, financing"
 }
 
 OPENAI_PROMPT = """Analyze the following transaction description and determine the most appropriate category. The category must be one of the following:
