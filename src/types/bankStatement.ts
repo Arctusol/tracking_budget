@@ -50,5 +50,8 @@ export const OPERATION_TYPES = [
     'CHEQUE',
     'VERSEMENT',
     'FRAIS',
-    'INTERET'
+    'INTERET',
+    'AVOIR',
+    'SALAIRE',
+    'INVESTIMENT'
 ];

@@ -249,14 +249,19 @@ async function processBoursobankRow(row: any, dateColumn: string | null, descrip
       description.includes("VIREMENT") || 
       description.includes("Salaire") ||
       description.includes("SALAIRE") ||
-      description.includes("Apperture")
+      description.includes("Apperture") ||
+      description.includes("CAF") ||
+      description.includes("Remboursement") ||
+      description.includes("AVOIR")
     )) {
     // Vérifier si c'est probablement un virement entrant
     if (description.includes("Apperture") || 
         description.includes("Salaire") || 
         description.includes("SALAIRE") || 
         description.includes("CAF") ||
-        description.includes("Remboursement")) {
+        description.includes("Remboursement") ||
+        description.includes("AVOIR")
+      ) {
       type = 'income';
       console.log("Type ajusté à 'income' basé sur la description:", description);
     }
@@ -274,7 +279,7 @@ async function processBoursobankRow(row: any, dateColumn: string | null, descrip
     // Si le montant est positif et qu'on n'a pas explicitement détecté un revenu
     if (!type || type !== 'income') {
       type = 'expense';
-      amount = -originalAmount; // Convertir en négatif pour les dépenses
+      amount = originalAmount; // Convertir en négatif pour les dépenses
     } else {
       // C'est un revenu, garder le montant positif
       amount = originalAmount;

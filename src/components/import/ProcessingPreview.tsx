@@ -15,7 +15,7 @@ interface ProcessingPreviewProps {
   error?: string;
   validationErrors?: ValidationError[];
   transactions?: ProcessedTransaction[];
-  onConfirm?: (metadata: StatementMetadata) => void;
+  onConfirm?: (metadata: StatementMetadata, transactions: ProcessedTransaction[]) => void;
   onCancel?: () => void;
   onCategoryChange?: (transactionId: string, category: string) => void;
 }
@@ -39,7 +39,7 @@ const ProcessingPreview = ({
   isProcessing = false,
   progress = 0,
   error = "",
-  transactions = [],
+  transactions: initialTransactions = [],
   onConfirm = () => {},
   onCancel = () => {},
   onCategoryChange = () => {},
@@ -54,12 +54,14 @@ const ProcessingPreview = ({
   };
 
   const [metadata, setMetadata] = useState<StatementMetadata>(initialMetadata);
+  const [localTransactions, setLocalTransactions] = useState<ProcessedTransaction[]>([]);
 
   useEffect(() => {
-    if (transactions[0]?.metadata) {
-      setMetadata(transactions[0].metadata);
+    if (initialTransactions[0]?.metadata) {
+      setMetadata(initialTransactions[0].metadata);
     }
-  }, [transactions]);
+    setLocalTransactions(initialTransactions);
+  }, [initialTransactions]);
 
   const handleMetadataChange = (field: keyof StatementMetadata) => (e: React.ChangeEvent<HTMLInputElement>) => {
     setMetadata(prev => ({
@@ -68,14 +70,24 @@ const ProcessingPreview = ({
     }));
   };
 
-  const handleConfirm = () => {
-    onConfirm(metadata);
+  const handleCategoryChange = (transactionId: string, category: string) => {
+    setLocalTransactions(prev => 
+      prev.map(transaction => 
+        transaction.id === transactionId 
+          ? { ...transaction, category_id: category }
+          : transaction
+      )
+    );
+    onCategoryChange(transactionId, category);
   };
 
-  // Extraire les métadonnées du premier relevé
-  const statementInfo = transactions[0]?.metadata;
-  const totalDebits = transactions.reduce((sum, t) => t.type === 'expense' ? sum + t.amount : sum, 0);
-  const totalCredits = transactions.reduce((sum, t) => t.type === 'income' ? sum + t.amount : sum, 0);
+  const handleConfirm = () => {
+    onConfirm(metadata, localTransactions);
+  };
+
+  // Calculs basés sur localTransactions au lieu de transactions
+  const totalDebits = localTransactions.reduce((sum, t) => t.type === 'expense' ? sum + t.amount : sum, 0);
+  const totalCredits = localTransactions.reduce((sum, t) => t.type === 'income' ? sum + t.amount : sum, 0);
   const netBalance = totalCredits - totalDebits;
 
   return (
@@ -94,7 +106,7 @@ const ProcessingPreview = ({
           <AlertTitle>Erreur</AlertTitle>
           <AlertDescription>{error}</AlertDescription>
         </Alert>
-      ) : transactions.length === 0 ? (
+      ) : initialTransactions.length === 0 ? (
         <Alert>
           <Info className="h-4 w-4" />
           <AlertTitle>Aucune transaction</AlertTitle>
@@ -177,8 +189,8 @@ const ProcessingPreview = ({
           {/* Transaction Table */}
           <div className="space-y-4">
             <CategoryMappingTable
-              transactions={transactions}
-              onCategoryChange={onCategoryChange}
+              transactions={localTransactions}
+              onCategoryChange={handleCategoryChange}
             />
           </div>
 

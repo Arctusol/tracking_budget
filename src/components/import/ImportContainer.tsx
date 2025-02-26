@@ -152,7 +152,7 @@ export default function ImportContainer({ onClose }: ImportContainerProps) {
         transaction_count: transactions.length,
       });
 
-      // Stocker les transactions dans Supabase
+      // Stocker les transactions dans Supabase avec leurs catégories mises à jour
       await saveTransactions(transactions, userId);
 
       // Mettre à jour le statut de l'import
@@ -202,9 +202,6 @@ export default function ImportContainer({ onClose }: ImportContainerProps) {
     categoryId: string,
   ) => {
     try {
-      const transaction = transactions.find((t) => t.id === transactionId);
-      if (!transaction) return;
-
       setTransactions((prev) =>
         prev.map((t) =>
           t.id === transactionId ? { ...t, category_id: categoryId } : t,
