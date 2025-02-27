@@ -24,22 +24,6 @@ export function StatsDisplay({ stats }: StatsDisplayProps) {
       trend: "down",
     },
     {
-      name: "Virements Amandine",
-      value: stats.transfersAmandine.toLocaleString("fr-FR", {
-        style: "currency",
-        currency: "EUR",
-      }),
-      trend: "up",
-    },
-    {
-      name: "Virements Antonin",
-      value: stats.transfersAntonin.toLocaleString("fr-FR", {
-        style: "currency",
-        currency: "EUR",
-      }),
-      trend: "up",
-    },
-    {
       name: "Revenus",
       value: stats.incomes.toLocaleString("fr-FR", {
         style: "currency",

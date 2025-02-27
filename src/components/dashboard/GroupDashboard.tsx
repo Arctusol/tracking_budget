@@ -38,7 +38,6 @@ export function GroupDashboard() {
 
   async function loadGroupData() {
     try {
-      // Rechercher le groupe par son slug (nom formaté)
       const { data: groupData, error: groupError } = await supabase
         .from('groups')
         .select(`
@@ -61,7 +60,7 @@ export function GroupDashboard() {
       const currentSlug = slugify(groupData.name);
       if (currentSlug !== slug) {
         // Rediriger vers l'URL avec le bon slug si nécessaire
-        navigate(`/groups/${currentSlug}`, { replace: true });
+        navigate(`/app/groups/${currentSlug}`, { replace: true });
         return;
       }
 
@@ -74,7 +73,7 @@ export function GroupDashboard() {
     } catch (error) {
       console.error('Error loading group data:', error);
       // Rediriger vers la page des groupes en cas d'erreur
-      navigate('/groups');
+      navigate('/app/groups');
     }
   }
 

@@ -3,12 +3,12 @@ import { Home, Users, Upload, Receipt, BarChart3, FileText } from "lucide-react"
 import { cn } from "@/lib/utils";
 
 const navigation = [
-  { name: "Tableau de Bord", href: "/", icon: BarChart3 },
-  { name: "Transactions", href: "/transactions", icon: Receipt },
-  { name: "Groupes", href: "/groups", icon: Users },
-  { name: "Import", href: "/import", icon: Upload },
-  { name: "Import tickets de caisse", href: "/receipts", icon: Receipt },
-  { name: "Analyse des tickets de caisse", href: "/receipts-dashboard", icon: FileText },
+  { name: "Tableau de Bord", href: "/app", icon: BarChart3 },
+  { name: "Transactions", href: "/app/transactions", icon: Receipt },
+  { name: "Groupes", href: "/app/groups", icon: Users },
+  { name: "Import", href: "/app/import", icon: Upload },
+  { name: "Import tickets de caisse", href: "/app/receipts", icon: Receipt },
+  { name: "Analyse des tickets de caisse", href: "/app/receipts-dashboard", icon: FileText },
 ];
 
 export function Navigation({ className }: { className?: string }) {

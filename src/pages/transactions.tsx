@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { DashboardFilters, FilterOptions } from "@/components/dashboard/DashboardFilters";
@@ -6,6 +6,8 @@ import { TransactionEditTable } from "@/components/transactions/TransactionEditT
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CATEGORY_HIERARCHY, CATEGORY_NAMES, getParentCategory } from "@/lib/constants/constants";
 import { ExportButton } from "@/components/common/ExportButton";
+import { Button } from "@/components/ui/button";
+import { Loader2 } from "lucide-react";
 
 interface Transaction {
   id: string;
@@ -30,87 +32,131 @@ export default function TransactionsPage() {
     groupFilter: "all",
   });
   const { user } = useAuth();
+  const [isLoading, setIsLoading] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [page, setPage] = useState(0);
+  const PAGE_SIZE = 50;
 
-  const fetchTransactions = async () => {
+  const fetchTransactions = useCallback(async (pageNumber = 0, append = false) => {
     if (!user) return;
+    setIsLoading(true);
 
-    const { data: transactionsData, error: transactionsError } = await supabase
-      .from("transactions")
-      .select(`
-        id,
-        amount,
-        type,
-        description,
-        date,
-        category_id,
-        created_by,
-        group_id
-      `)
-      .order("date", { ascending: false });
+    try {
+      let query = supabase
+        .from("transactions")
+        .select(`
+          id,
+          amount,
+          type,
+          description,
+          date,
+          category_id,
+          created_by,
+          group_id
+        `)
+        .order("date", { ascending: false });
 
-    if (transactionsError) {
-      console.error("Error loading transactions:", transactionsError);
-      return;
+      // Appliquer les filtres côté serveur quand c'est possible
+      if (filters.category && filters.category !== "all") {
+        if (CATEGORY_HIERARCHY[filters.category]) {
+          // Pour les catégories parentes, inclure toutes les sous-catégories
+          const categoryIds = [filters.category, ...CATEGORY_HIERARCHY[filters.category]];
+          query = query.in('category_id', categoryIds);
+        } else {
+          // Pour les sous-catégories
+          query = query.eq('category_id', filters.category);
+        }
+      }
+
+      if (filters.startDate && filters.endDate) {
+        const startDate = new Date(filters.startDate).toISOString().split('T')[0];
+        const endDate = new Date(filters.endDate).toISOString().split('T')[0];
+        query = query.gte('date', startDate).lte('date', endDate);
+      }
+
+      if (filters.groupFilter && filters.groupFilter !== 'all') {
+        if (filters.groupFilter === 'grouped') {
+          query = query.not('group_id', 'is', null);
+        } else {
+          query = query.is('group_id', null);
+        }
+      }
+
+      // Appliquer la pagination
+      const { data: transactionsData, error: transactionsError } = await query
+        .range(pageNumber * PAGE_SIZE, (pageNumber + 1) * PAGE_SIZE - 1);
+
+      if (transactionsError) {
+        console.error("Error loading transactions:", transactionsError);
+        return;
+      }
+
+      const newTransactions = transactionsData || [];
+      
+      // Vérifier s'il y a plus de transactions à charger
+      setHasMore(newTransactions.length === PAGE_SIZE);
+      
+      if (append) {
+        setTransactions(prev => {
+          const updatedTransactions = [...prev, ...newTransactions];
+          
+          // Appliquer les filtres côté client pour les filtres qui ne peuvent pas être appliqués côté serveur
+          let filtered = [...updatedTransactions];
+          
+          // Filtre de recherche (toujours côté client)
+          if (filters.search) {
+            const searchLower = filters.search.toLowerCase();
+            filtered = filtered.filter(
+              (t) => t.description.toLowerCase().includes(searchLower)
+            );
+          }
+          
+          setFilteredTransactions(filtered);
+          return updatedTransactions;
+        });
+      } else {
+        setTransactions(newTransactions);
+        
+        // Appliquer les filtres côté client pour les filtres qui ne peuvent pas être appliqués côté serveur
+        let filtered = [...newTransactions];
+        
+        // Filtre de recherche (toujours côté client)
+        if (filters.search) {
+          const searchLower = filters.search.toLowerCase();
+          filtered = filtered.filter(
+            (t) => t.description.toLowerCase().includes(searchLower)
+          );
+        }
+        
+        setFilteredTransactions(filtered);
+      }
+    } catch (error) {
+      console.error("Error in fetchTransactions:", error);
+    } finally {
+      setIsLoading(false);
     }
+  }, [user, filters]);
 
-    const transactions = transactionsData || [];
-    setTransactions(transactions);
-    applyFilters(transactions, filters);
-  };
+  const loadMoreTransactions = useCallback(() => {
+    const nextPage = page + 1;
+    setPage(nextPage);
+    fetchTransactions(nextPage, true);
+  }, [page, fetchTransactions]);
 
   useEffect(() => {
-    fetchTransactions();
-  }, [user]);
+    // Charger uniquement la première page au montage du composant
+    fetchTransactions(0, false);
+  }, [fetchTransactions]);
 
-  const applyFilters = (transactions: Transaction[], currentFilters: FilterOptions) => {
-    let filtered = [...transactions];
-
-    if (currentFilters.search) {
-      const searchLower = currentFilters.search.toLowerCase();
-      filtered = filtered.filter(
-        (t) => t.description.toLowerCase().includes(searchLower)
-      );
-    }
-
-    if (currentFilters.groupFilter && currentFilters.groupFilter !== 'all') {
-      filtered = filtered.filter((t) => {
-        if (currentFilters.groupFilter === 'grouped') {
-          return t.group_id !== null;
-        } else {
-          return t.group_id === null;
-        }
-      });
-    }
-
-    if (currentFilters.category && currentFilters.category !== "all") {
-      filtered = filtered.filter((t) => {
-        if (!t.category_id) return false;
-        
-        // Si la catégorie sélectionnée est une catégorie parente
-        if (CATEGORY_HIERARCHY[currentFilters.category]) {
-          // Inclure les transactions de la catégorie parente et de ses sous-catégories
-          return t.category_id === currentFilters.category || 
-                 CATEGORY_HIERARCHY[currentFilters.category].includes(t.category_id);
-        }
-        
-        // Si c'est une sous-catégorie, vérifier directement
-        return t.category_id === currentFilters.category;
-      });
-    }
-
-    if (currentFilters.startDate && currentFilters.endDate) {
-      filtered = filtered.filter((t) => {
-        const date = new Date(t.date);
-        return date >= currentFilters.startDate! && date <= currentFilters.endDate!;
-      });
-    }
-
-    setFilteredTransactions(filtered);
-  };
+  // Réinitialiser la pagination et recharger les données lorsque les filtres changent
+  useEffect(() => {
+    setPage(0);
+    fetchTransactions(0, false);
+  }, [filters, fetchTransactions]);
 
   const handleFilterChange = (newFilters: FilterOptions) => {
     setFilters(newFilters);
-    applyFilters(transactions, newFilters);
+    // La récupération des données sera déclenchée par l'effet ci-dessus
   };
 
   // Fonction pour obtenir les catégories utilisées
@@ -154,8 +200,27 @@ export default function TransactionsPage() {
           />
           <TransactionEditTable 
             transactions={filteredTransactions} 
-            onTransactionUpdated={fetchTransactions} 
+            onTransactionUpdated={() => fetchTransactions(0, false)} 
           />
+          
+          {hasMore && (
+            <div className="mt-4 flex justify-center">
+              <Button 
+                onClick={loadMoreTransactions} 
+                disabled={isLoading}
+                variant="outline"
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Chargement...
+                  </>
+                ) : (
+                  "Charger plus de transactions"
+                )}
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
